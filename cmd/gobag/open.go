@@ -48,6 +48,14 @@ func archiveErr(err error) error {
 	return err
 }
 
+// plural formats a count with its noun, pluralized by adding "s".
+func plural(n int, noun string) string {
+	if n == 1 {
+		return fmt.Sprintf("1 %s", noun)
+	}
+	return fmt.Sprintf("%d %ss", n, noun)
+}
+
 // humanSize formats a byte count for terse output.
 func humanSize(n int64) string {
 	const unit = 1024

@@ -293,7 +293,8 @@ func writeArchive(outPath string, p *plan.Plan, files []packFile, sourceRoot str
 }
 
 func printSummary(w io.Writer, p *plan.Plan, files []packFile, warns []plan.Problem, opts packOptions) {
-	fmt.Fprintf(w, "\npacking %q — %d sources, %d files\n", p.Name, len(p.Sources), len(files))
+	fmt.Fprintf(w, "\npacking %q — %s, %s\n", p.Name,
+		plural(len(p.Sources), "source"), plural(len(files), "file"))
 
 	if len(p.Sources) > 0 {
 		fmt.Fprintln(w, "\nsources:")
