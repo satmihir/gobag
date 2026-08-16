@@ -48,8 +48,10 @@ for platform in darwin_arm64 darwin_amd64 linux_arm64 linux_amd64; do
     echo "  $platform  $sum" >&2
 done
 
-# Refuse to leave a half-pinned script behind.
-if grep -q 'PLACEHOLDER' "$tmp/out.sh"; then
+# Refuse to leave a half-pinned script behind. Match the assignments only —
+# the file's own comment explains what an unpinned value looks like, and a
+# whole-file grep matches that prose and rejects a correctly pinned script.
+if grep -Eq '^SHA256_[a-z0-9_]+="PLACEHOLDER"' "$tmp/out.sh"; then
     echo "release-pin: some platforms are still unpinned; refusing to write" >&2
     exit 1
 fi
