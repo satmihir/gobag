@@ -37,7 +37,7 @@ func parsePackArgs(args []string, stderr io.Writer) (packOptions, error) {
 
 flags:
   -plan FILE      pack from a plan produced by /checkpoint
-  -o FILE         output archive (default: <name>-<timestamp>.gobag)
+  -o, -out FILE   output archive (default: <name>-<timestamp>.gobag)
   -name NAME      archive name (default: from the plan, or the root's basename)
   -plaintext      do not encrypt (default: encrypt with a passphrase)
   -transcripts    include session transcripts (default: omitted)
@@ -47,6 +47,9 @@ flags:
 	var opts packOptions
 	fs.StringVar(&opts.planPath, "plan", "", "path to plan.json")
 	fs.StringVar(&opts.out, "o", "", "output archive path")
+	// An agent driving this from a skill reaches for --out about as often as
+	// -o. Accepting both costs one line and saves a failed command.
+	fs.StringVar(&opts.out, "out", "", "output archive path (alias for -o)")
 	fs.StringVar(&opts.name, "name", "", "archive name")
 	fs.BoolVar(&opts.plaintext, "plaintext", false, "do not encrypt")
 	fs.BoolVar(&opts.transcripts, "transcripts", false, "include session transcripts")

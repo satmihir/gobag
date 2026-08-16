@@ -150,8 +150,11 @@ session transcripts; they are keepsakes, not continuity, and they can be large.
 ## Step 6 — pack
 
 ```bash
-gobag pack --plan plan.json
+gobag pack --plan plan.json -o <name>.gobag
 ```
+
+Flags take a single dash (`-o`, `-plaintext`, `-transcripts`); `--` works
+too. `-o` takes the archive's full path, not a directory.
 
 Encrypted by default; it will prompt for a passphrase. If no terminal is
 available, ask the user for a passphrase and pass it via the `GOBAG_PASSPHRASE`

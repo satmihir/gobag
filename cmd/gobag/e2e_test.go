@@ -449,6 +449,27 @@ func TestPlanModeRewritesMemoryPaths(t *testing.T) {
 	}
 }
 
+// A live session driving the checkpoint skill reached for --out rather than
+// -o. Both spellings must work, or the pack fails in the field.
+func TestPackAcceptsOutAlias(t *testing.T) {
+	if testing.Short() {
+		t.Skip("shells out to git")
+	}
+	ws := testutil.NewWorkspace(t)
+
+	for _, flag := range []string{"-o", "-out", "--out"} {
+		t.Run(flag, func(t *testing.T) {
+			out := filepath.Join(t.TempDir(), "aliased.gobag")
+			if code, o := cli(t, "pack", ws.Root, flag, out, "-plaintext"); code != 0 {
+				t.Fatalf("pack %s exited %d:\n%s", flag, code, o)
+			}
+			if _, err := os.Stat(out); err != nil {
+				t.Errorf("%s did not produce the archive: %v", flag, err)
+			}
+		})
+	}
+}
+
 func mustEvalSymlinks(t *testing.T, p string) string {
 	t.Helper()
 	resolved, err := filepath.EvalSymlinks(p)
