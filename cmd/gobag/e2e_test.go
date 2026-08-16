@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/satmihir/gobag/internal/archive"
+	"github.com/satmihir/gobag/internal/claudestate"
 	"github.com/satmihir/gobag/internal/plan"
 	"github.com/satmihir/gobag/internal/testutil"
 )
@@ -360,6 +362,100 @@ func TestFlagsAfterPositional(t *testing.T) {
 	if bytes.HasPrefix(raw, []byte("age-encryption.org/v1")) {
 		t.Error("-plaintext after the positional argument was ignored")
 	}
+}
+
+// An archive is untrusted input: a crafted entry must not be able to write
+// outside the install root.
+func TestInstallRejectsTraversalArchive(t *testing.T) {
+	dir := t.TempDir()
+	hostile := filepath.Join(dir, "hostile.gobag")
+	f, err := os.Create(hostile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, err := archive.NewWriter(f, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	must := func(err error) {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	must(w.AddBytes("MANIFEST.json", 0o644,
+		[]byte(`{"plan_version":1,"name":"evil","created":"2026-01-01T00:00:00Z"}`)))
+	must(w.AddBytes("../escaped.txt", 0o644, []byte("pwned\n")))
+	must(w.Close())
+	must(f.Close())
+
+	target := filepath.Join(dir, "victim", "ws")
+	code, out := cli(t, "install", hostile, "-root", target)
+	if code != 1 {
+		t.Errorf("hostile archive should exit 1, got %d:\n%s", code, out)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "victim", "escaped.txt")); err == nil {
+		t.Fatal("traversal succeeded: file written outside the install root")
+	}
+}
+
+// The skill-driven path must carry the source root, or memory restored to a
+// different machine keeps asserting paths from the old one.
+func TestPlanModeRewritesMemoryPaths(t *testing.T) {
+	dir := t.TempDir()
+	oldRoot := filepath.Join(dir, "old", "ws")
+
+	memSrc := filepath.Join(dir, "memsrc")
+	writeFile(t, filepath.Join(memSrc, "runbook.md"),
+		"Deploy lives in "+oldRoot+"/repos/backend.\n")
+
+	p := &plan.Plan{
+		PlanVersion: plan.Version,
+		Name:        "t",
+		SourceRoot:  oldRoot,
+		State: plan.State{
+			Memory: []plan.Entry{{Path: memSrc, Dest: "state/memory"}},
+		},
+	}
+	planPath := filepath.Join(dir, "plan.json")
+	pf, err := os.Create(planPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Encode(pf); err != nil {
+		t.Fatal(err)
+	}
+	pf.Close()
+
+	out := filepath.Join(dir, "t.gobag")
+	if code, o := cli(t, "pack", "-plan", planPath, "-o", out, "-plaintext"); code != 0 {
+		t.Fatalf("pack exited %d:\n%s", code, o)
+	}
+
+	claudeDir := filepath.Join(dir, "claude")
+	t.Setenv("CLAUDE_CONFIG_DIR", claudeDir)
+	newRoot := filepath.Join(dir, "new", "ws")
+	if code, o := cli(t, "install", out, "-root", newRoot, "-link-memory"); code != 0 {
+		t.Fatalf("install exited %d:\n%s", code, o)
+	}
+
+	installed := filepath.Join(claudeDir, "projects",
+		claudestate.EncodeProjectDir(mustEvalSymlinks(t, newRoot)), "runbook.md")
+	got := readFile(t, installed)
+	if strings.Contains(got, oldRoot) {
+		t.Errorf("old workspace root survived in installed memory: %q", got)
+	}
+	if !strings.Contains(got, "repos/backend") {
+		t.Errorf("memory content mangled: %q", got)
+	}
+}
+
+func mustEvalSymlinks(t *testing.T, p string) string {
+	t.Helper()
+	resolved, err := filepath.EvalSymlinks(p)
+	if err != nil {
+		t.Fatalf("resolving %s: %v", p, err)
+	}
+	return resolved
 }
 
 func readFile(t *testing.T, path string) string {

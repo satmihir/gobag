@@ -22,13 +22,17 @@ const Version = 1
 
 // Plan is the complete description of a pack.
 type Plan struct {
-	PlanVersion int      `json:"plan_version"`
-	Name        string   `json:"name"`
-	Sources     []Source `json:"sources,omitempty"`
-	Context     []Entry  `json:"context,omitempty"`
-	State       State    `json:"state,omitempty"`
-	Skills      []Entry  `json:"skills,omitempty"`
-	MCP         *Entry   `json:"mcp,omitempty"`
+	PlanVersion int    `json:"plan_version"`
+	Name        string `json:"name"`
+	// SourceRoot is the workspace root on the packing machine. Optional, but
+	// without it a cross-machine restore cannot rewrite workspace paths inside
+	// memory files — the archive has no other record of where "here" was.
+	SourceRoot string   `json:"source_root,omitempty"`
+	Sources    []Source `json:"sources,omitempty"`
+	Context    []Entry  `json:"context,omitempty"`
+	State      State    `json:"state,omitempty"`
+	Skills     []Entry  `json:"skills,omitempty"`
+	MCP        *Entry   `json:"mcp,omitempty"`
 }
 
 // Source is a git repository travelling as a reference: a remote URL and a

@@ -139,7 +139,12 @@ func loadPlan(opts packOptions, stdout io.Writer) (*plan.Plan, string, error) {
 		if err != nil {
 			return nil, "", wrapUser(err)
 		}
-		return p, "", nil
+		// Without a source root the archive cannot say where "here" was, so
+		// memory path-rewriting on the other side is silently lost.
+		if p.SourceRoot == "" {
+			fmt.Fprintln(stdout, "note: plan has no source_root — memory paths will not be rewritten on restore")
+		}
+		return p, p.SourceRoot, nil
 	}
 
 	root, err := filepath.Abs(opts.root)

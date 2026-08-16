@@ -15,6 +15,11 @@ func TestEncodeProjectDir(t *testing.T) {
 		{"/Users/u/ws/proj/", "-Users-u-ws-proj"},
 		{"/", "-"},
 		{"/a", "-a"},
+		// Dots and underscores become dashes too — verified against Claude
+		// Code's own behavior: /tmp/dot.ted_dir -> -tmp-dot-ted-dir.
+		{"/tmp/dot.ted_dir/sub", "-tmp-dot-ted-dir-sub"},
+		{"/var/folders/_p/x", "-var-folders--p-x"},
+		{"/a/b.c", "-a-b-c"},
 	} {
 		if got := EncodeProjectDir(tc.in); got != tc.want {
 			t.Errorf("EncodeProjectDir(%q) = %q, want %q", tc.in, got, tc.want)

@@ -14,11 +14,20 @@ import (
 )
 
 // EncodeProjectDir converts an absolute workspace path into the directory
-// name Claude Code uses under ~/.claude/projects. The scheme replaces each
-// path separator with a dash, so /Users/u/ws/proj becomes -Users-u-ws-proj.
+// name Claude Code uses under ~/.claude/projects. The scheme, established
+// empirically against Claude Code itself, replaces every character that is not
+// a letter or digit with a dash — not just path separators: /a/dot.ted_dir
+// becomes -a-dot-ted-dir. Getting this wrong installs memory where Claude
+// Code will never look, which is silent amnesia.
 func EncodeProjectDir(absPath string) string {
 	p := filepath.ToSlash(filepath.Clean(absPath))
-	return strings.ReplaceAll(p, "/", "-")
+	return strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+			return r
+		}
+		return '-'
+	}, p)
 }
 
 // ProjectsRoot returns the directory holding per-project Claude Code state.

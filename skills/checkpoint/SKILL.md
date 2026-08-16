@@ -115,6 +115,7 @@ escape the archive root.
 {
   "plan_version": 1,
   "name": "<short-workspace-name>",
+  "source_root": "/absolute/path/to/the/workspace/root",
   "sources": [
     {
       "path": "/absolute/path/to/frontend",
@@ -141,7 +142,9 @@ escape the archive root.
 ```
 
 Keep `context/HANDOFF.md` as the handoff's destination — restore looks for it
-there. Include `state.transcripts` only if the user explicitly wants their
+there. Always set `source_root`: it is how restore knows which absolute paths
+inside memory files refer to this workspace and need rewriting for the new
+machine. Include `state.transcripts` only if the user explicitly wants their
 session transcripts; they are keepsakes, not continuity, and they can be large.
 
 ## Step 6 — pack
