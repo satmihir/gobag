@@ -1,0 +1,19 @@
+# Orientation
+
+You are a new session picking up teammate, packed 2026-08-01T14:32:00Z. This document states what is on disk and what changed while the workspace was packed; it does not describe intent. It was packed from `/Users/someone/ws/proj` and restored to `/home/dev/workspace`.
+
+## Restored
+
+- `repos/backend` — cloned at 8a1b2c300000
+- `repos/frontend` — cloned at 3f9c2ab00000
+- `repos/frontend-wip` — worktree-created at 3f9c2ab00000
+- 2 state and context files unpacked
+- 1 memory file had workspace paths rewritten for this machine
+
+## Since you were packed
+
+- `repos/frontend` — the remote advanced 14 commits since this bag was packed.
+
+## Start here
+
+Read `context/HANDOFF.md` next. It carries the previous session's account of the work: goal and status, open threads, decisions and their reasoning, and where it expected things to be. Where it disagrees with this document, this document describes the disk and the handoff describes the intent.

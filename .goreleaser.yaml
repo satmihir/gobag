@@ -1,0 +1,60 @@
+version: 2
+project_name: gobag
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: gobag
+    main: ./cmd/gobag
+    binary: gobag
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  # The name template must stay in sync with scripts/gobag-bootstrap.sh, which
+  # constructs this exact filename to download a pinned release.
+  - id: default
+    name_template: "gobag_{{ .Tag }}_{{ .Os }}_{{ .Arch }}"
+    formats:
+      - tar.gz
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+
+release:
+  draft: false
+  prerelease: auto
+  footer: |
+    ## Install
+
+    In Claude Code:
+
+        /plugin marketplace add satmihir/gobag
+        /plugin install gobag@gobag
+
+    Headless:
+
+        curl -fsSL https://raw.githubusercontent.com/satmihir/gobag/main/scripts/install.sh | sh

@@ -68,10 +68,20 @@ build order — follow it milestone by milestone.
 - `internal/reconcile/` — manifest-vs-reality diff + ORIENTATION.md
                           generation
 - `internal/scan/`      — pack-time secret scanning (warn, don't block)
+- `internal/overlay/`   — converge-never-destroy file writes; where the
+                          `.from-gobag` conflict rule lives
+- `internal/claudestate/` — Claude Code's encoded-cwd scheme and the
+                          memory re-key
+- `internal/testutil/`  — fixture workspaces built at run time (never
+                          check in a nested `.git`)
 - `.claude-plugin/`     — plugin.json + marketplace.json (the repo is
                           its own marketplace)
 - `skills/`             — the plugin skills: `checkpoint/SKILL.md`,
                           `restore/SKILL.md`
+- `scripts/`            — `gobag-bootstrap.sh` (pinned first-use install,
+                          called by both skills), `install.sh` (headless
+                          curl|sh), `release-pin.sh` (rewrites the pins;
+                          never edit them by hand)
 
 ## Review flags
 

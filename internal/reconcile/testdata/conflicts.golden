@@ -1,0 +1,23 @@
+# Orientation
+
+You are a new session picking up teammate, packed 2026-08-01T14:32:00Z. This document states what is on disk and what changed while the workspace was packed; it does not describe intent.
+
+## Restored
+
+- `repos/backend` — unreachable
+- `repos/frontend` — left-dirty at 3f9c2ab (uncommitted changes)
+- 0 state and context files unpacked (1 already matched)
+
+## Since you were packed
+
+- `repos/backend` — remote unreachable; the working copy is at the pinned ref 8a1b2c300000 and may be behind.
+- `repos/frontend` — left-dirty; gobag left it untouched.
+
+## Conflicts and skips
+
+- `context/HANDOFF.md` already existed and differed. Your copy was kept; the archived version is at `context/HANDOFF.md.from-gobag`.
+- 2 session transcripts were not packed
+
+## Start here
+
+Read `context/HANDOFF.md` next. It carries the previous session's account of the work: goal and status, open threads, decisions and their reasoning, and where it expected things to be. Where it disagrees with this document, this document describes the disk and the handoff describes the intent.

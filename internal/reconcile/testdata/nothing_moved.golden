@@ -1,0 +1,16 @@
+# Orientation
+
+You are a new session picking up teammate, packed 2026-08-01T14:32:00Z. This document states what is on disk and what changed while the workspace was packed; it does not describe intent.
+
+## Restored
+
+- `repos/frontend` — already-at-ref at 3f9c2ab00000
+- 0 state and context files unpacked (1 already matched)
+
+## Since you were packed
+
+Nothing moved: every repository is at the ref recorded in the archive.
+
+## Start here
+
+Read `context/HANDOFF.md` next. It carries the previous session's account of the work: goal and status, open threads, decisions and their reasoning, and where it expected things to be. Where it disagrees with this document, this document describes the disk and the handoff describes the intent.

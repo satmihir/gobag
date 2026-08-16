@@ -1,0 +1,19 @@
+{
+  "name": "gobag",
+  "description": "Pack a Claude Code workspace — repo references, distilled context, expectations — into one encrypted archive, and pick it up on another machine oriented.",
+  "version": "0.1.0",
+  "author": {
+    "name": "satmihir",
+    "url": "https://github.com/satmihir"
+  },
+  "homepage": "https://github.com/satmihir/gobag",
+  "repository": "https://github.com/satmihir/gobag",
+  "license": "Apache-2.0",
+  "keywords": [
+    "workspace",
+    "checkpoint",
+    "restore",
+    "portability",
+    "handoff"
+  ]
+}

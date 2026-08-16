@@ -1,0 +1,20 @@
+{
+  "name": "gobag",
+  "owner": {
+    "name": "satmihir",
+    "url": "https://github.com/satmihir"
+  },
+  "metadata": {
+    "description": "The gobag plugin: checkpoint a Claude Code workspace and restore it anywhere.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "gobag",
+      "source": "./",
+      "description": "Pack a workspace into a portable encrypted archive with /checkpoint; pick it up on another machine with /restore.",
+      "version": "0.1.0",
+      "category": "workflow"
+    }
+  ]
+}
