@@ -44,11 +44,18 @@ type Manifest struct {
 // Source is a repository reference: everything needed to reconstruct it, and
 // nothing about where it lived.
 type Source struct {
-	Dest      string     `json:"dest"`
-	Remote    string     `json:"remote"`
-	Ref       string     `json:"ref"`
-	Branch    string     `json:"branch,omitempty"`
-	Worktrees []Worktree `json:"worktrees,omitempty"`
+	Dest   string `json:"dest"`
+	Remote string `json:"remote"`
+	Ref    string `json:"ref"`
+	Branch string `json:"branch,omitempty"`
+	// External marks a repository install must locate rather than clone.
+	External bool `json:"external,omitempty"`
+	// SizeBytes is why: the object-store size measured at pack time.
+	SizeBytes int64 `json:"size_bytes,omitempty"`
+	// LocationHints are paths it occupied on the packing machine, offered to
+	// whoever has to answer where it lives here.
+	LocationHints []string   `json:"location_hints,omitempty"`
+	Worktrees     []Worktree `json:"worktrees,omitempty"`
 }
 
 // Worktree is a linked worktree reference.
@@ -71,7 +78,10 @@ func FromPlan(p *plan.Plan, gobagVersion, sourceRoot string, created time.Time, 
 	}
 
 	for _, s := range p.Sources {
-		ms := Source{Dest: s.Dest, Remote: s.Remote, Ref: s.Ref, Branch: s.Branch}
+		ms := Source{
+			Dest: s.Dest, Remote: s.Remote, Ref: s.Ref, Branch: s.Branch,
+			External: s.External, SizeBytes: s.SizeBytes, LocationHints: s.LocationHints,
+		}
 		for _, w := range s.Worktrees {
 			ms.Worktrees = append(ms.Worktrees, Worktree{Dest: w.Dest, Ref: w.Ref, Branch: w.Branch})
 		}

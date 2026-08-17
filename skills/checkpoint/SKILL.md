@@ -42,6 +42,17 @@ catch what a filesystem walk would miss.
   content. Tell the user which ones, and that they will be missing on the
   other side.
 
+**Is any of it too large to clone on the other side?**
+- A monorepo of tens of gigabytes cannot be cloned once per restore. gobag
+  measures each repository and marks anything past 1GB as *external*: never
+  cloned on restore, but linked to a clone the target machine already has.
+- The decision is announced in pack's output. Confirm it with the user, since
+  it carries an assumption only they can validate — that a clone of that
+  repository exists, or can exist, on wherever they are going. Force it either
+  way with `-external repos/<name>` or `-external-threshold 0`.
+- Say plainly what it means on the far side: one extra command,
+  `gobag link repos/<name> <path>`, answered once per machine.
+
 **Is any of it uncommitted or unpushed?**
 - `git -C <path> status --porcelain` and
   `git -C <path> log --branches --not --remotes --oneline`.

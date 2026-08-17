@@ -141,6 +141,39 @@ This is the moat over `docker commit`, bare `tar`, and a context doc in a
 gist: none of them can tell your agent that the world moved while it was
 in the bag.
 
+## Repositories too large to clone
+
+A monorepo measured in tens of gigabytes breaks the "clone it on the other
+side" assumption: cloning it once per restore is untenable, and on any
+machine where you would restore it, a clone almost certainly already
+exists. Such a repository travels as a third thing — neither content nor a
+clonable reference, but a **located** one.
+
+- `pack` measures each repository's object store (`git count-objects`) and
+  marks anything past a threshold (1GB default, `--external-threshold`) as
+  external; `--external DEST` forces the decision. The choice is always
+  announced, never silent, and the archive records size and the paths it
+  occupied here as hints for whoever has to find it there.
+- `install` never clones an external repository. It consults the
+  per-machine registry and, finding a clone, attaches the workspace to it
+  as a **linked worktree**: the object store stays single and shared, so
+  the repository costs nothing extra, while the workspace still gets its
+  own checkout at the pinned ref. The checkout is detached on purpose —
+  the pinned branch is likely checked out in the user's main clone, and
+  git allows a branch in only one worktree. Nothing the user is standing
+  on moves.
+- Finding nothing, install still succeeds. Every other repository lands
+  and orientation carries the exact command to finish:
+  `gobag link repos/monorepo <path>`.
+- `gobag link` is the interactive half, kept out of `install` so install
+  stays headless. It verifies the clone is actually the right repository
+  (remote match) before attaching anything, and records the answer in
+  `~/.gobag/machine.json` so later restores link without asking.
+
+The registry is the one piece of gobag that persists state outside a
+workspace. It is written only when the user explicitly links something —
+never as a side effect of packing or installing.
+
 ## Paths
 
 The canonical root (`~/ws/<name>/`) is demoted from requirement to default

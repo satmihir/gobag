@@ -23,6 +23,12 @@ const (
 	OutcomeRemoteMismatch Outcome = "remote-mismatch"
 	OutcomeUnreachable    Outcome = "unreachable"
 	OutcomeCreated        Outcome = "worktree-created"
+	// OutcomeLinked means an external repository was attached as a worktree of
+	// a clone already on this machine — nothing was cloned or copied.
+	OutcomeLinked Outcome = "linked"
+	// OutcomeUnlinked means an external repository has no local clone recorded
+	// on this machine yet. The install still succeeded around it.
+	OutcomeUnlinked Outcome = "not-linked"
 )
 
 // Result is one repository's or worktree's install outcome.
@@ -357,6 +363,10 @@ func onBranch(branch string) string {
 	}
 	return " on " + branch
 }
+
+// Linkable reports whether a result describes an external repository that
+// still needs a local clone pointed at it.
+func (r Result) Linkable() bool { return r.Outcome == OutcomeUnlinked }
 
 func orDetached(branch string) string {
 	if branch == "" {

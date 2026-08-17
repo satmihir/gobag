@@ -13,6 +13,7 @@ import (
 	"github.com/satmihir/gobag/internal/archive"
 	"github.com/satmihir/gobag/internal/claudestate"
 	"github.com/satmihir/gobag/internal/gitops"
+	"github.com/satmihir/gobag/internal/machine"
 	"github.com/satmihir/gobag/internal/manifest"
 	"github.com/satmihir/gobag/internal/overlay"
 	"github.com/satmihir/gobag/internal/reconcile"
@@ -52,6 +53,14 @@ Every step is idempotent: re-running converges and never destroys your work.
 	}
 	fmt.Fprintf(stdout, "restoring into %s\n", target)
 
+	registry, err := machine.Load()
+	if err != nil {
+		// A damaged registry must not block a restore; it only costs the
+		// automatic linking of external repositories.
+		fmt.Fprintf(stderr, "gobag: %v (continuing without it)\n", err)
+		registry = &machine.Registry{Repos: map[string]string{}}
+	}
+
 	f, passphrase, err := openArchive(rest[0], stderr)
 	if err != nil {
 		return err
@@ -79,6 +88,20 @@ Every step is idempotent: re-running converges and never destroys your work.
 	// restored — an unreachable remote, a ref that was never pushed — must not
 	// strand the rest of the workspace. Failures become orientation notes.
 	for _, s := range m.Sources {
+		// An external repository is never cloned. Either this machine already
+		// has a copy recorded, or the install completes around it and says so.
+		if s.External {
+			res := linkExternal(target, s, registry, stdout)
+			in.Repos = append(in.Repos, res)
+			if res.Linkable() {
+				in.Notes = append(in.Notes, fmt.Sprintf(
+					"`%s` is external and not linked on this machine. Point gobag at a local "+
+						"clone with:\n  gobag link %s <path-to-clone> --root %s",
+					s.Dest, s.Dest, target))
+			}
+			continue
+		}
+
 		res, err := gitops.EnsureRepo(target, s)
 		if err != nil {
 			fmt.Fprintf(stderr, "  %s: %v\n", s.Dest, err)
@@ -122,11 +145,59 @@ Every step is idempotent: re-running converges and never destroys your work.
 				"re-run with --link-memory to install it", memoryPrefix))
 	}
 
+	// Keep the manifest in the workspace so `gobag link` can finish the job
+	// later without the archive being present.
+	if err := saveInstalledManifest(target, m); err != nil {
+		return err
+	}
 	if err := writeOrientation(target, in); err != nil {
 		return err
 	}
 	fmt.Fprintf(stdout, "\nwrote %s — read it first, then %s\n",
 		reconcile.Name, orDefault(in.HandoffPath, "the repositories above"))
+	return nil
+}
+
+// linkExternal attaches an external repository using a clone this machine has
+// already recorded, or reports that none is recorded yet.
+func linkExternal(target string, s manifest.Source, registry *machine.Registry, stdout io.Writer) gitops.Result {
+	clonePath, ok := registry.Lookup(s.Remote)
+	if !ok {
+		res := gitops.UnlinkedResult(s)
+		fmt.Fprintf(stdout, "  %s: %s\n", res.Dest, res.Outcome)
+		return res
+	}
+
+	res, err := gitops.EnsureExternal(target, s, clonePath)
+	if err != nil {
+		res = gitops.Result{
+			Dest:    s.Dest,
+			Outcome: gitops.OutcomeUnlinked,
+			Detail:  fmt.Sprintf("not linked: %v", err),
+		}
+	}
+	fmt.Fprintf(stdout, "  %s: %s\n", res.Dest, res.Outcome)
+	return res
+}
+
+// installedManifestPath is where install leaves the manifest for later
+// commands. Inside the workspace root, so nothing is left elsewhere.
+func installedManifestPath(root string) string {
+	return filepath.Join(root, ".gobag", manifest.Name)
+}
+
+func saveInstalledManifest(root string, m *manifest.Manifest) error {
+	dir := filepath.Dir(installedManifestPath(root))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return wrapUser(fmt.Errorf("creating %s: %w", dir, err))
+	}
+	var b strings.Builder
+	if err := m.Encode(&b); err != nil {
+		return err
+	}
+	if err := os.WriteFile(installedManifestPath(root), []byte(b.String()), 0o644); err != nil {
+		return wrapUser(fmt.Errorf("recording the manifest: %w", err))
+	}
 	return nil
 }
 

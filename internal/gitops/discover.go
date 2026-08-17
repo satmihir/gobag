@@ -258,6 +258,26 @@ func describe(c candidate) (*plan.Source, []plan.Problem) {
 		Ref:    sha,
 		Branch: branchOf(c.path),
 	}
+
+	// A repository big enough that cloning it per restore is untenable travels
+	// as a located reference instead: the far machine is expected to have one
+	// already. Measured, not guessed, and always reported.
+	if size, err := RepoSizeBytes(c.path); err == nil {
+		s.SizeBytes = size
+		if size >= ExternalThreshold {
+			s.External = true
+			s.LocationHints = []string{c.path}
+			problems = append(problems, plan.Problem{
+				Severity: plan.SeverityWarning,
+				Dest:     c.dest,
+				Message: fmt.Sprintf("%s of objects — packing as an external reference. "+
+					"It will not be cloned on restore; the target machine must already have a "+
+					"clone, and you will point gobag at it with `gobag link %s <path>`",
+					humanBytes(size), c.dest),
+			})
+		}
+	}
+
 	problems = append(problems, stateProblems(c.path, c.dest, sha, url != "")...)
 	return s, problems
 }

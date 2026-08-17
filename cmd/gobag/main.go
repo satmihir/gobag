@@ -15,6 +15,7 @@ usage:
   gobag pack    --plan plan.json [-o out.gobag] [--plaintext] [--transcripts]
   gobag pack    <root>           [-o out.gobag] [--plaintext] [--transcripts]
   gobag install <archive> [--root DIR]
+  gobag link    <dest> <path-to-clone> [--root DIR]
   gobag inspect <archive>
   gobag verify  <archive>
 
@@ -37,6 +38,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		err = cmdPack(args[1:], stdout, stderr)
 	case "install":
 		err = cmdInstall(args[1:], stdout, stderr)
+	case "link":
+		err = cmdLink(args[1:], stdout, stderr)
 	case "inspect":
 		err = cmdInspect(args[1:], stdout, stderr)
 	case "verify":

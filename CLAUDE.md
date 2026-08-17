@@ -36,6 +36,14 @@ build order — follow it milestone by milestone.
   relative to the install root chosen at restore time. If you find
   yourself writing an absolute path into an artifact, stop.
 - **Repos travel as references (remote + pinned ref), never as content.**
+  A repository too large to clone per restore travels as a *located*
+  reference: never cloned by install, attached as a linked worktree of a
+  clone the target machine already has. Never move or check out a branch
+  in someone's existing clone — external links are always detached.
+- **The per-machine registry (`~/.gobag/machine.json`) is the only state
+  outside a workspace,** and it is written only by an explicit
+  `gobag link`. Do not read or write it from `pack`, and do not extend it
+  into a general-purpose config file.
 - **Transcripts are opt-in keepsakes, never load-bearing.** Continuity
   comes from `context/HANDOFF.md`. Do not implement JSONL path
   rewriting; do not make any restore behavior depend on transcript

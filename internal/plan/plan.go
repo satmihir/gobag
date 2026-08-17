@@ -47,8 +47,19 @@ type Source struct {
 	// Ref is the pinned commit, preferably a full sha.
 	Ref string `json:"ref"`
 	// Branch, when set, is checked out on restore instead of a detached HEAD.
-	Branch    string     `json:"branch,omitempty"`
-	Worktrees []Worktree `json:"worktrees,omitempty"`
+	Branch string `json:"branch,omitempty"`
+	// External marks a repository too large to clone per restore. It is never
+	// cloned on install; the target machine is expected to already have a copy,
+	// which gobag locates and attaches a worktree to.
+	External bool `json:"external,omitempty"`
+	// SizeBytes is the measured object-store size at pack time. It is why a
+	// repository was marked external, and it tells the far side what it is
+	// being asked to find.
+	SizeBytes int64 `json:"size_bytes,omitempty"`
+	// LocationHints are paths where this repository lived on the packing
+	// machine — a starting point for a human answering "where is it here?".
+	LocationHints []string   `json:"location_hints,omitempty"`
+	Worktrees     []Worktree `json:"worktrees,omitempty"`
 }
 
 // Worktree is a linked git worktree of its parent Source.

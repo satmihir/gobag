@@ -73,6 +73,16 @@ could not know.
   left untouched, and any conflicted file the user should reconcile.
 - If memory was staged rather than installed, tell the user the one command
   that finishes the job.
+- If orientation reports an external repository as **not-linked**, it was
+  deliberately not cloned — it is large enough that the target machine is
+  expected to have a copy. Ask the user where that clone lives on this
+  machine and run `gobag link <dest> <path>`. gobag verifies the clone is
+  the right repository before attaching, records the answer so later
+  restores link it automatically, and attaches it as a detached worktree
+  that shares the existing object store without disturbing whatever branch
+  the user has checked out there. If they do not have a clone yet, say so
+  plainly rather than cloning one behind their back — a repository this
+  size is their decision.
 
 Then summarize for the user in a short paragraph: what this workspace is, where
 the work stopped, what changed underneath it while it was packed, and what you

@@ -68,6 +68,30 @@ Repositories travel as references, which is why archives are megabytes rather
 than gigabytes, and why a restore gives you a fresh clone rather than stale
 bits.
 
+## Repositories too big to clone
+
+A monorepo of tens of gigabytes can't be cloned once per restore — and on any
+machine where you'd restore it, you almost certainly already have a clone. So
+it travels as a *located* reference instead:
+
+```
+$ gobag install team.gobag --root ~/ws/proj
+  repos/monorepo: not-linked
+  repos/small:    cloned
+
+$ gobag link repos/monorepo ~/src/monorepo
+repos/monorepo: linked
+  linked as a worktree of ~/src/monorepo at 97f576e5, detached
+  — objects are shared, nothing was cloned
+  remembered — future restores will link it without asking
+```
+
+gobag measures each repo and marks anything past 1GB external (tune with
+`--external-threshold`, force with `--external DEST`). Install never clones
+one; it attaches a linked worktree to the clone you already have, so the
+object store stays single and your main checkout never moves. Answer once per
+machine and later restores link it automatically.
+
 ## The interesting part
 
 `install` does not just unpack. It compares what the archive remembers against

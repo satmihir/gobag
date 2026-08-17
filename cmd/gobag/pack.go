@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"math"
 	"os"
 	"path"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,6 +28,25 @@ type packOptions struct {
 	name        string
 	plaintext   bool
 	transcripts bool
+	// external forces specific destinations to travel as located references
+	// regardless of measured size.
+	external stringList
+	// threshold overrides the automatic external cutoff. "0" disables
+	// auto-detection entirely.
+	threshold string
+}
+
+// stringList collects a repeatable flag.
+type stringList []string
+
+func (l *stringList) String() string { return strings.Join(*l, ",") }
+func (l *stringList) Set(v string) error {
+	for _, part := range strings.Split(v, ",") {
+		if part = strings.TrimSpace(part); part != "" {
+			*l = append(*l, part)
+		}
+	}
+	return nil
 }
 
 func parsePackArgs(args []string, stderr io.Writer) (packOptions, error) {
@@ -41,6 +62,11 @@ flags:
   -name NAME      archive name (default: from the plan, or the root's basename)
   -plaintext      do not encrypt (default: encrypt with a passphrase)
   -transcripts    include session transcripts (default: omitted)
+  -external DEST  treat DEST as an external repository: never cloned on
+                  restore, linked to a clone the target machine already has
+  -external-threshold SIZE
+                  size above which a repository becomes external
+                  (default 1GB; "0" disables the automatic decision)
 `)
 	}
 
@@ -53,6 +79,9 @@ flags:
 	fs.StringVar(&opts.name, "name", "", "archive name")
 	fs.BoolVar(&opts.plaintext, "plaintext", false, "do not encrypt")
 	fs.BoolVar(&opts.transcripts, "transcripts", false, "include session transcripts")
+	fs.Var(&opts.external, "external", "destination to treat as an external repository (repeatable)")
+	fs.StringVar(&opts.threshold, "external-threshold", "",
+		"size above which a repository travels as an external reference (e.g. 1GB; 0 to disable)")
 	rest, err := parseInterspersed(fs, args)
 	if err != nil {
 		return opts, err
@@ -77,17 +106,26 @@ func cmdPack(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 
-	p, sourceRoot, err := loadPlan(opts, stdout)
+	// The threshold has to be settled before discovery measures anything.
+	if err := applyThreshold(opts.threshold); err != nil {
+		return err
+	}
+
+	p, sourceRoot, discovered, err := loadPlan(opts, stdout)
 	if err != nil {
 		return err
 	}
+	discovered = append(discovered, markExternal(p, opts.external)...)
 	if opts.name != "" {
 		p.Name = opts.name
 	}
 
-	// Structural checks first (cheap, no network), then the git-dependent ones.
-	// A plan may be agent-authored, so nothing here is taken on trust.
-	problems := append(plan.Validate(p), gitops.VerifyPlan(p)...)
+	// Discovery's own findings travel with the plan — dropping them would hide
+	// the things only the walk can see, such as a repository too large to
+	// clone or a worktree whose parent lies outside the packed root.
+	problems := append(discovered, plan.Validate(p)...)
+	problems = append(problems, gitops.VerifyPlan(p)...)
+	problems = dedupeProblems(problems)
 	plan.SortProblems(problems)
 	errs, warns := plan.Problems(problems)
 	if len(errs) > 0 {
@@ -134,43 +172,147 @@ func cmdPack(args []string, stdout, stderr io.Writer) error {
 	return nil
 }
 
-// loadPlan returns the plan plus the workspace root it came from. Walk mode
-// discovers a plan; --plan trusts the file's structure but nothing in it.
-func loadPlan(opts packOptions, stdout io.Writer) (*plan.Plan, string, error) {
+// loadPlan returns the plan, the workspace root it came from, and anything
+// discovery noticed along the way. Walk mode discovers a plan; --plan trusts
+// the file's structure but nothing in it.
+func loadPlan(opts packOptions, stdout io.Writer) (*plan.Plan, string, []plan.Problem, error) {
 	if opts.planPath != "" {
 		p, err := plan.Load(opts.planPath)
 		if err != nil {
-			return nil, "", wrapUser(err)
+			return nil, "", nil, wrapUser(err)
 		}
 		// Without a source root the archive cannot say where "here" was, so
 		// memory path-rewriting on the other side is silently lost.
 		if p.SourceRoot == "" {
 			fmt.Fprintln(stdout, "note: plan has no source_root — memory paths will not be rewritten on restore")
 		}
-		return p, p.SourceRoot, nil
+		return p, p.SourceRoot, nil, nil
 	}
 
 	root, err := filepath.Abs(opts.root)
 	if err != nil {
-		return nil, "", wrapUser(fmt.Errorf("resolving %s: %w", opts.root, err))
+		return nil, "", nil, wrapUser(fmt.Errorf("resolving %s: %w", opts.root, err))
 	}
 	if info, err := os.Stat(root); err != nil || !info.IsDir() {
-		return nil, "", errUser("%s is not a directory", opts.root)
+		return nil, "", nil, errUser("%s is not a directory", opts.root)
 	}
 
 	fmt.Fprintf(stdout, "walking %s\n", root)
 	p, problems, err := gitops.Discover(root)
 	if err != nil {
-		return nil, "", err
+		return nil, "", nil, err
 	}
-	errs, _ := plan.Problems(problems)
+	errs, warns := plan.Problems(problems)
 	if len(errs) > 0 {
 		for _, e := range errs {
 			fmt.Fprintf(stdout, "  %s\n", problemLine(e))
 		}
-		return nil, "", errUser("discovery found %d problem(s) in %s", len(errs), root)
+		return nil, "", nil, errUser("discovery found %d problem(s) in %s", len(errs), root)
 	}
-	return p, root, nil
+	return p, root, warns, nil
+}
+
+// applyThreshold interprets -external-threshold. Sizes may be written the way
+// a person says them ("1GB", "500MB"); "0" turns the automatic decision off.
+func applyThreshold(s string) error {
+	if s == "" {
+		return nil
+	}
+	n, err := parseSize(s)
+	if err != nil {
+		return errUser("--external-threshold %q: %v", s, err)
+	}
+	if n == 0 {
+		// Nothing can exceed the largest possible size, so auto-detection is
+		// off while an explicit -external still works.
+		gitops.ExternalThreshold = math.MaxInt64
+		return nil
+	}
+	gitops.ExternalThreshold = n
+	return nil
+}
+
+func parseSize(s string) (int64, error) {
+	s = strings.TrimSpace(strings.ToUpper(s))
+	mult := int64(1)
+	for _, suffix := range []struct {
+		text string
+		mult int64
+	}{
+		{"TB", 1 << 40}, {"GB", 1 << 30}, {"MB", 1 << 20}, {"KB", 1 << 10},
+		{"T", 1 << 40}, {"G", 1 << 30}, {"M", 1 << 20}, {"K", 1 << 10},
+	} {
+		if strings.HasSuffix(s, suffix.text) {
+			s, mult = strings.TrimSpace(strings.TrimSuffix(s, suffix.text)), suffix.mult
+			break
+		}
+	}
+	n, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0, fmt.Errorf("not a size")
+	}
+	if n < 0 {
+		return 0, fmt.Errorf("must not be negative")
+	}
+	return int64(n * float64(mult)), nil
+}
+
+// markExternal applies -external to the plan, reporting any destination that
+// does not name a repository so a typo cannot silently do nothing.
+func markExternal(p *plan.Plan, dests []string) []plan.Problem {
+	if len(dests) == 0 {
+		return nil
+	}
+	wanted := make(map[string]bool, len(dests))
+	for _, d := range dests {
+		wanted[strings.TrimSuffix(path.Clean(d), "/")] = true
+	}
+
+	var problems []plan.Problem
+	for i := range p.Sources {
+		s := &p.Sources[i]
+		if !wanted[s.Dest] {
+			continue
+		}
+		delete(wanted, s.Dest)
+		if s.External {
+			continue // already decided by size
+		}
+		s.External = true
+		if s.Path != "" {
+			s.LocationHints = append(s.LocationHints, s.Path)
+		}
+		problems = append(problems, plan.Problem{
+			Severity: plan.SeverityWarning,
+			Dest:     s.Dest,
+			Message: fmt.Sprintf("packing as an external reference by request. It will not be "+
+				"cloned on restore; link it with `gobag link %s <path>`", s.Dest),
+		})
+	}
+	for d := range wanted {
+		problems = append(problems, plan.Problem{
+			Severity: plan.SeverityError,
+			Dest:     d,
+			Message:  "--external names a destination that is not a repository in this plan",
+		})
+	}
+	return problems
+}
+
+// dedupeProblems collapses identical findings. Discovery and verification
+// overlap deliberately — each must be correct on its own — so the same dirty
+// tree can be reported twice; the user should see it once.
+func dedupeProblems(ps []plan.Problem) []plan.Problem {
+	seen := make(map[plan.Problem]bool, len(ps))
+	out := ps[:0]
+	for _, p := range ps {
+		if seen[p] {
+			continue
+		}
+		seen[p] = true
+		out = append(out, p)
+	}
+	return out
 }
 
 // packFile is one concrete file destined for the archive.
