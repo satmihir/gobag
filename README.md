@@ -99,6 +99,12 @@ the world as it is now, and writes `ORIENTATION.md`: main advanced fourteen
 commits, this worktree was recreated, that remote is unreachable, these files
 you had already differed and were left alone.
 
+It also states the things a restored session would otherwise have to guess:
+whether this is even the machine that packed the bag (on a uniform fleet, a
+familiar-looking clone is not evidence), how far the default branch moved under
+a pinned feature branch, which carried files exist in no commit, and how stale
+the handoff already was when it was sealed.
+
 Restore then has two documents that say different kinds of thing:
 
 - `ORIENTATION.md` is **fact** — what is on disk and what moved.

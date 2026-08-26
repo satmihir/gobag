@@ -1,0 +1,17 @@
+# Orientation
+
+You are a new session picking up teammate, packed 2026-08-25T18:00:00Z. This document states what is on disk and what changed while the workspace was packed; it does not describe intent. It was packed from `/home/repo` and restored to `/home/user/ws`.
+
+**Packed on devcontainer-3f9c (a container); restored on workstation — different machines.** Any same-named repository or path that already exists here is unrelated to this archive, however familiar it looks. The work this bag carries is in the restored tree at `/home/user/ws`.
+
+## Restored
+
+- `repos/api` — cloned at 3f9c2ab00000
+
+## Since you were packed
+
+Nothing moved: every repository is at the ref recorded in the archive.
+
+## Start here
+
+Read `context/HANDOFF.md` next. It carries the previous session's account of the work: goal and status, open threads, decisions and their reasoning, and where it expected things to be. Where it disagrees with this document, this document describes the disk and the handoff describes the intent.

@@ -497,3 +497,86 @@ func writeFile(t *testing.T, path, content string) {
 		t.Fatalf("write %s: %v", path, err)
 	}
 }
+
+// A checkpoint taken mid-pull-request pins a feature branch. If orientation
+// reports only the tip, it says "nothing moved" while the base has advanced
+// underneath — which is how a restored session silently trusts a stale handoff.
+func TestOrientationReportsBaseDrift(t *testing.T) {
+	if testing.Short() {
+		t.Skip("shells out to git")
+	}
+	ws := testutil.NewWorkspace(t)
+	ws.FeatureBranch("backend", "user/my-feature")
+
+	archivePath := filepath.Join(t.TempDir(), "midpr.gobag")
+	if code, out := cli(t, "pack", ws.Root, "-o", archivePath, "-plaintext"); code != 0 {
+		t.Fatalf("pack exited %d:\n%s", code, out)
+	}
+
+	// The feature branch's tip stays exactly where it was; main moves on.
+	ws.AdvanceRemote("backend", 7)
+
+	target := filepath.Join(t.TempDir(), "restored")
+	if code, out := cli(t, "install", archivePath, "-root", target); code != 0 {
+		t.Fatalf("install exited %d:\n%s", code, out)
+	}
+
+	orientation := readFile(t, filepath.Join(target, "ORIENTATION.md"))
+	for _, want := range []string{"user/my-feature", "main", "7 commits", "behind"} {
+		if !strings.Contains(orientation, want) {
+			t.Errorf("orientation is missing %q — base drift went unreported:\n%s", want, orientation)
+		}
+	}
+	if strings.Contains(orientation, "Nothing moved") {
+		t.Errorf("the base advanced; orientation must not claim nothing moved:\n%s", orientation)
+	}
+}
+
+// The archive records which machine packed it, so a restore can state the
+// same-or-different verdict instead of leaving it to inference.
+func TestOrientationStatesHostVerdict(t *testing.T) {
+	if testing.Short() {
+		t.Skip("shells out to git")
+	}
+	_, archivePath := packFixture(t)
+	target := filepath.Join(t.TempDir(), "restored")
+	if code, out := cli(t, "install", archivePath, "-root", target); code != 0 {
+		t.Fatalf("install exited %d:\n%s", code, out)
+	}
+
+	// Packed and restored in this same process, so the verdict must be "same"
+	// — and must be stated, not left silent.
+	orientation := readFile(t, filepath.Join(target, "ORIENTATION.md"))
+	if !strings.Contains(orientation, "same machine") {
+		t.Errorf("orientation did not state the host verdict:\n%s", orientation)
+	}
+}
+
+// An uncommitted document is exactly the thing a dying workspace loses.
+func TestPackWarnsWhenItBecomesSoleCopy(t *testing.T) {
+	if testing.Short() {
+		t.Skip("shells out to git")
+	}
+	ws := testutil.NewWorkspace(t)
+
+	out := filepath.Join(t.TempDir(), "sole.gobag")
+	code, output := cli(t, "pack", ws.Root, "-o", out, "-plaintext")
+	if code != 0 {
+		t.Fatalf("pack exited %d:\n%s", code, output)
+	}
+	// context.md sits in the workspace root, in no repository at all.
+	for _, want := range []string{"in no commit", "only copy", "context/context.md"} {
+		if !strings.Contains(output, want) {
+			t.Errorf("pack did not warn it was becoming sole custodian (%q):\n%s", want, output)
+		}
+	}
+
+	// And the far side hears about it too.
+	target := filepath.Join(t.TempDir(), "restored")
+	if code, o := cli(t, "install", out, "-root", target); code != 0 {
+		t.Fatalf("install exited %d:\n%s", code, o)
+	}
+	if o := readFile(t, filepath.Join(target, "ORIENTATION.md")); !strings.Contains(o, "only copy") {
+		t.Errorf("orientation should mirror the sole-copy warning:\n%s", o)
+	}
+}

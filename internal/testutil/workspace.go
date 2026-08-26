@@ -204,6 +204,20 @@ func (w *Workspace) AdvanceRemote(name string, n int) {
 	Git(t, scratch, "push", "-q", "origin", "main")
 }
 
+// FeatureBranch pushes a branch off main and checks it out, mirroring a
+// checkpoint taken in the middle of an open pull request.
+func (w *Workspace) FeatureBranch(name, branch string) {
+	t := w.t
+	t.Helper()
+	r := w.repo(name)
+	Git(t, r.Path, "checkout", "-q", "-b", branch)
+	writeFile(t, filepath.Join(r.Path, "feature.txt"), "work in progress\n")
+	Git(t, r.Path, "add", ".")
+	Git(t, r.Path, "commit", "-q", "-m", "feature work")
+	Git(t, r.Path, "push", "-q", "-u", "origin", branch)
+	r.Branch = branch
+}
+
 func (w *Workspace) repo(name string) *Repo {
 	w.t.Helper()
 	r, ok := w.Repos[name]

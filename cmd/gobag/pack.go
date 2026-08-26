@@ -16,6 +16,7 @@ import (
 
 	"github.com/satmihir/gobag/internal/archive"
 	"github.com/satmihir/gobag/internal/gitops"
+	"github.com/satmihir/gobag/internal/host"
 	"github.com/satmihir/gobag/internal/manifest"
 	"github.com/satmihir/gobag/internal/plan"
 	"github.com/satmihir/gobag/internal/scan"
@@ -144,6 +145,7 @@ func cmdPack(args []string, stdout, stderr io.Writer) error {
 	if err := reportSecrets(stdout, files); err != nil {
 		return err
 	}
+	sole := reportSoleCopies(stdout, p)
 
 	created := time.Now()
 	outPath := opts.out
@@ -159,7 +161,7 @@ func cmdPack(args []string, stdout, stderr io.Writer) error {
 		}
 	}
 
-	size, err := writeArchive(outPath, p, files, sourceRoot, created, passphrase, opts.transcripts)
+	size, err := writeArchive(outPath, p, files, sourceRoot, created, passphrase, opts.transcripts, sole)
 	if err != nil {
 		return err
 	}
@@ -387,7 +389,7 @@ func expandEntries(entries []plan.Entry) ([]packFile, error) {
 }
 
 func writeArchive(outPath string, p *plan.Plan, files []packFile, sourceRoot string,
-	created time.Time, passphrase string, withTranscripts bool) (int64, error) {
+	created time.Time, passphrase string, withTranscripts bool, sole []string) (int64, error) {
 
 	f, err := os.OpenFile(outPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
@@ -411,6 +413,13 @@ func writeArchive(outPath string, p *plan.Plan, files []packFile, sourceRoot str
 	}
 
 	m := manifest.FromPlan(p, versionString(), sourceRoot, created, withTranscripts)
+	// Provenance the far side cannot reconstruct: which machine this came
+	// from, when the context documents were actually written, and what the
+	// archive is now the only copy of.
+	h := host.Current()
+	m.Host = &h
+	m.ContextModified = contextTimes(p.Context)
+	m.SoleCopies = sole
 	var mb strings.Builder
 	if err := m.Encode(&mb); err != nil {
 		return 0, err
@@ -488,6 +497,59 @@ func reportSecrets(w io.Writer, files []packFile) error {
 	}
 	fmt.Fprintln(w)
 	return scan.Format(findings, w)
+}
+
+// reportSoleCopies warns about curated files whose content exists in no
+// commit, and returns their destinations for the manifest.
+//
+// Scoped to context and skills on purpose: memory and transcripts are
+// inherently unversioned, so flagging them would be noise nobody can act on.
+// A design document someone forgot to commit is the actionable case.
+func reportSoleCopies(w io.Writer, p *plan.Plan) []string {
+	var curated []plan.Entry
+	curated = append(curated, p.Context...)
+	curated = append(curated, p.Skills...)
+
+	var dests []string
+	for _, e := range curated {
+		if info, err := os.Stat(e.Path); err != nil || info.IsDir() {
+			continue
+		}
+		if gitops.SoleCopy(e.Path) {
+			dests = append(dests, e.Dest)
+		}
+	}
+	if len(dests) == 0 {
+		return nil
+	}
+
+	sort.Strings(dests)
+	fmt.Fprintf(w, "\ncarrying %s that %s in no commit:\n",
+		plural(len(dests), "file"), agree(len(dests), "exists", "exist"))
+	for _, d := range dests {
+		fmt.Fprintf(w, "  %s\n", d)
+	}
+	fmt.Fprintln(w, "Once this workspace is gone, this archive is their only copy.\n"+
+		"Consider committing them first.")
+	return dests
+}
+
+// contextTimes records when each context document was last modified, so the
+// far side can tell a fresh handoff from one that was already days stale when
+// the bag was sealed.
+func contextTimes(entries []plan.Entry) map[string]string {
+	out := map[string]string{}
+	for _, e := range entries {
+		info, err := os.Stat(e.Path)
+		if err != nil || info.IsDir() {
+			continue
+		}
+		out[e.Dest] = info.ModTime().UTC().Format(time.RFC3339)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func problemLine(p plan.Problem) string {

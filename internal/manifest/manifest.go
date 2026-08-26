@@ -14,6 +14,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/satmihir/gobag/internal/host"
 	"github.com/satmihir/gobag/internal/plan"
 )
 
@@ -33,12 +34,27 @@ type Manifest struct {
 	// install depends on it.
 	SourceRoot string `json:"source_root,omitempty"`
 
+	// Host is where this archive was packed. Without it, a restore cannot tell
+	// "same machine, stale bag" from "different machine, same layout" — and a
+	// uniform fleet makes the wrong answer look obvious.
+	Host *host.Info `json:"host,omitempty"`
+
 	Sources     []Source `json:"sources,omitempty"`
 	Context     []string `json:"context,omitempty"`
 	Skills      []string `json:"skills,omitempty"`
 	Memory      []string `json:"memory,omitempty"`
 	Transcripts []string `json:"transcripts,omitempty"`
 	MCP         string   `json:"mcp,omitempty"`
+
+	// ContextModified maps a context destination to when its source file was
+	// last modified (RFC3339). A handoff written days before the pack
+	// describes a world that had already moved on by the time it travelled.
+	ContextModified map[string]string `json:"context_modified,omitempty"`
+
+	// SoleCopies lists destinations whose content exists in no commit
+	// anywhere, so this archive is their only copy once the packing workspace
+	// is gone.
+	SoleCopies []string `json:"sole_copies,omitempty"`
 }
 
 // Source is a repository reference: everything needed to reconstruct it, and

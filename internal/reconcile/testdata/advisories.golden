@@ -1,17 +1,21 @@
 # Orientation
 
-You are a new session picking up teammate, packed 2026-08-01T14:32:00Z. This document states what is on disk and what changed while the workspace was packed; it does not describe intent.
+You are a new session picking up t, packed 2026-08-25T18:00:00Z. This document states what is on disk and what changed while the workspace was packed; it does not describe intent.
 
 **This archive records no host identity** (it predates that field), so whether it was packed on this machine cannot be established. Treat same-named repositories already present here as unrelated until you have checked, and do your work in the restored tree.
 
 ## Restored
 
-- `repos/frontend` — already-at-ref at 3f9c2ab00000
-- 0 state and context files unpacked (1 already matched)
+No repositories travelled in this archive.
 
 ## Since you were packed
 
 Nothing moved: every repository is at the ref recorded in the archive.
+
+## Conflicts and skips
+
+- `context/HANDOFF.md` was last modified 3 days 18h before this archive was packed. Time-sensitive claims in it — pull request states, CI results, version pins, what is still open — were already that old when the bag was sealed.
+- This archive is the only copy of 1 file that exists in no commit: `context/design.md`. If that work matters, commit it somewhere durable.
 
 ## Start here
 

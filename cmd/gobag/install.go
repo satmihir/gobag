@@ -13,6 +13,7 @@ import (
 	"github.com/satmihir/gobag/internal/archive"
 	"github.com/satmihir/gobag/internal/claudestate"
 	"github.com/satmihir/gobag/internal/gitops"
+	"github.com/satmihir/gobag/internal/host"
 	"github.com/satmihir/gobag/internal/machine"
 	"github.com/satmihir/gobag/internal/manifest"
 	"github.com/satmihir/gobag/internal/overlay"
@@ -82,6 +83,7 @@ Every step is idempotent: re-running converges and never destroys your work.
 		Files:       unpacked.files,
 		Notes:       unpacked.notes,
 		HandoffPath: handoffPath(m),
+		CurrentHost: host.Current(),
 	}
 
 	// Repositories: clone or converge, never destroy. One source that cannot be

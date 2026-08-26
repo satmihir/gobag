@@ -54,6 +54,21 @@ They are different kinds of document and you need both:
 - **ORIENTATION.md is fact.** gobag generated it by comparing the archive
   against the world as it is right now: what was restored, which remotes
   advanced and by how much, what could not be reached, which files conflicted.
+
+  Two lines in it deserve your full attention before you touch anything:
+
+  **The host verdict.** Orientation states outright whether this is the machine
+  that packed the archive. Believe it over your own inference. On a fleet with
+  a uniform layout, same-named clones sit at identical paths on every box, so a
+  familiar-looking repository is *not* evidence you are on the packing host. If
+  orientation says different machines, anything already here is unrelated and
+  your work belongs in the restored tree.
+
+  **Base drift.** "The tip has not moved" is not the same as "nothing changed".
+  A bag packed mid-pull-request pins a feature branch, and orientation reports
+  how far the default branch advanced underneath it. A large number there means
+  the handoff's claims about merge state, CI, and dependency versions may have
+  been overtaken — check them before acting on them.
 - **HANDOFF.md is intent.** The previous session's account of the goal, the
   open threads, the decisions and their reasoning, and where it expected things
   to be.

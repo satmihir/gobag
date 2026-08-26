@@ -56,6 +56,15 @@ func plural(n int, noun string) string {
 	return fmt.Sprintf("%d %ss", n, noun)
 }
 
+// agree picks a verb form matching a count, so a warning about one file does
+// not read like a typo.
+func agree(n int, singular, plural string) string {
+	if n == 1 {
+		return singular
+	}
+	return plural
+}
+
 // humanSize formats a byte count for terse output.
 func humanSize(n int64) string {
 	const unit = 1024

@@ -1,17 +1,16 @@
 # Orientation
 
-You are a new session picking up teammate, packed 2026-08-01T14:32:00Z. This document states what is on disk and what changed while the workspace was packed; it does not describe intent.
+You are a new session picking up t, packed 2026-08-25T18:00:00Z. This document states what is on disk and what changed while the workspace was packed; it does not describe intent.
 
 **This archive records no host identity** (it predates that field), so whether it was packed on this machine cannot be established. Treat same-named repositories already present here as unrelated until you have checked, and do your work in the restored tree.
 
 ## Restored
 
-- `repos/frontend` — already-at-ref at 3f9c2ab00000
-- 0 state and context files unpacked (1 already matched)
+No repositories travelled in this archive.
 
 ## Since you were packed
 
-Nothing moved: every repository is at the ref recorded in the archive.
+- `repos/api` — pinned to `user/my-feature`, whose tip is unchanged, but `main` has advanced 95 commits underneath it (1 ahead, 95 behind). Anything the handoff says about merge state, CI, or dependency versions may already be false.
 
 ## Start here
 

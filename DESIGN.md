@@ -174,6 +174,32 @@ The registry is the one piece of gobag that persists state outside a
 workspace. It is written only when the user explicitly links something —
 never as a side effect of packing or installing.
 
+## What orientation must never leave to inference
+
+Four facts a restored session cannot reconstruct, learned from a real restore
+that went confidently wrong:
+
+- **Which machine packed this.** A bag packed in a dead devcontainer, restored
+  onto a uniform fleet, looks exactly like a stale bag on its own host: the
+  same paths exist, the same repository names are cloned, the timestamps are
+  minutes old. Every signal points the wrong way. The archive records a
+  hashed machine identity and orientation states the comparison outright, in
+  both directions — including when it cannot tell.
+- **How far the base moved.** A checkpoint taken mid-pull-request pins a
+  feature branch. "The tip is unchanged" is then true and actively
+  misleading: the default branch may have advanced a hundred commits, already
+  falsifying the handoff's claims about merge state, CI, and version pins.
+  Orientation reports drift against the remote's default branch whenever the
+  pin is not on it.
+- **What the archive is the only copy of.** Curated context is often
+  uncommitted — that is why it was worth carrying. Pack names those files
+  before sealing, because a bag that is the single copy of unversioned work
+  is a single point of failure nobody chose.
+- **How stale the handoff already was.** gobag knows when the handoff was
+  written and when the bag was sealed. If those differ by more than a day,
+  orientation says so: a status table reads as current unless something says
+  otherwise.
+
 ## Paths
 
 The canonical root (`~/ws/<name>/`) is demoted from requirement to default

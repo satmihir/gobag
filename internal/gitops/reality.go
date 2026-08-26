@@ -14,6 +14,8 @@ import (
 type Reality struct {
 	Dest      string
 	PinnedRef string
+	// PinnedBranch is the branch the archive pinned, empty for a detached pin.
+	PinnedBranch string
 	// RemoteHead is the commit the pinned branch (or the remote's HEAD, for a
 	// detached pin) points at right now. Empty when the remote did not answer.
 	RemoteHead string
@@ -23,13 +25,24 @@ type Reality struct {
 	// Unreachable means the remote could not be consulted; the rest of the
 	// struct carries nothing new.
 	Unreachable bool
+
+	// BaseBranch is the remote's default branch, set only when the pin is on
+	// some other branch. A checkpoint taken mid-pull-request pins a feature
+	// branch, and "the tip has not moved" is then true and useless: the
+	// question that matters is how far the base moved underneath it.
+	BaseBranch string
+	// BaseAhead is commits the pinned ref has that BaseBranch lacks.
+	BaseAhead int
+	// BaseBehind is commits BaseBranch has that the pinned ref lacks. This is
+	// the number that silently invalidates a handoff.
+	BaseBehind int
 }
 
 // RemoteReality asks the remote what has happened since the bag was packed.
 // The remote being down is an expected outcome, not an error: install runs on
 // whatever network the traveller landed on.
 func RemoteReality(root string, s manifest.Source) (Reality, error) {
-	r := Reality{Dest: s.Dest, PinnedRef: s.Ref}
+	r := Reality{Dest: s.Dest, PinnedRef: s.Ref, PinnedBranch: s.Branch}
 	dest, err := targetPath(root, s.Dest)
 	if err != nil {
 		return r, err
@@ -57,6 +70,13 @@ func RemoteReality(root string, s manifest.Source) (Reality, error) {
 		return r, nil
 	}
 	r.RemoteHead = firstField(out)
+
+	// Base drift is computed even when the tip has not moved — that is exactly
+	// the case where it is the only thing worth saying.
+	if inRepo {
+		r.BaseBranch, r.BaseAhead, r.BaseBehind = baseDrift(dir, s)
+	}
+
 	if r.RemoteHead == "" || r.RemoteHead == s.Ref || !inRepo {
 		return r, nil
 	}
@@ -99,4 +119,78 @@ func firstField(out string) string {
 		}
 	}
 	return ""
+}
+
+// baseDrift measures the pinned ref against the remote's default branch.
+//
+// It answers the question a mid-pull-request checkpoint actually raises: not
+// "did my branch move" but "how much has main moved under me while this bag
+// was in transit". Returns an empty branch name when there is nothing to say —
+// no default branch, or the pin is already on it.
+func baseDrift(dir string, s manifest.Source) (branch string, ahead, behind int) {
+	if s.Branch == "" {
+		// A detached pin has no branch to compare; the tip diff already covers
+		// everything that can be said about it.
+		return "", 0, 0
+	}
+
+	base, baseSha := remoteDefaultBranch(dir, s.Remote)
+	if base == "" || base == s.Branch || baseSha == "" {
+		return "", 0, 0
+	}
+
+	// Both commits must be present locally to be counted. A fetch failure
+	// costs the count, never the restore.
+	if _, err := resolve(dir, baseSha); err != nil {
+		name, _, err := remoteURL(dir)
+		if err != nil {
+			return "", 0, 0
+		}
+		if err := fetcher(dir, s.Dest, name)(); err != nil {
+			return "", 0, 0
+		}
+		if _, err := resolve(dir, baseSha); err != nil {
+			return "", 0, 0
+		}
+	}
+	if _, err := resolve(dir, s.Ref); err != nil {
+		return "", 0, 0
+	}
+
+	out, err := local(dir, "rev-list", "--left-right", "--count", s.Ref+"..."+baseSha)
+	if err != nil {
+		return "", 0, 0
+	}
+	fields := strings.Fields(out)
+	if len(fields) != 2 {
+		return "", 0, 0
+	}
+	a, err1 := strconv.Atoi(fields[0])
+	b, err2 := strconv.Atoi(fields[1])
+	if err1 != nil || err2 != nil {
+		return "", 0, 0
+	}
+	return base, a, b
+}
+
+// remoteDefaultBranch asks the remote which branch its HEAD points at, and
+// what that branch is at right now.
+func remoteDefaultBranch(dir, remote string) (branch, sha string) {
+	out, err := network(dir, "ls-remote", "--symref", remote, "HEAD")
+	if err != nil {
+		return "", ""
+	}
+	for _, line := range lines(out) {
+		if rest, ok := strings.CutPrefix(line, "ref:"); ok {
+			fields := strings.Fields(rest)
+			if len(fields) > 0 {
+				branch = strings.TrimPrefix(fields[0], "refs/heads/")
+			}
+			continue
+		}
+		if fields := strings.Fields(line); len(fields) >= 2 && fields[1] == "HEAD" {
+			sha = fields[0]
+		}
+	}
+	return branch, sha
 }

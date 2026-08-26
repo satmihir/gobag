@@ -2,6 +2,8 @@
 
 You are a new session picking up teammate, packed 2026-08-01T14:32:00Z. This document states what is on disk and what changed while the workspace was packed; it does not describe intent.
 
+**This archive records no host identity** (it predates that field), so whether it was packed on this machine cannot be established. Treat same-named repositories already present here as unrelated until you have checked, and do your work in the restored tree.
+
 ## Restored
 
 - `repos/backend` — unreachable

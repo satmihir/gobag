@@ -60,6 +60,23 @@ catch what a filesystem walk would miss.
   locally will fail to restore. Say so plainly and offer to commit and push
   first. This is the single most common way a restore disappoints someone.
 
+**Is the handoff you are about to carry already stale?**
+- If a handoff document already exists, check when it was last written
+  (`stat -f %Sm` or `git log -1 --format=%cI` if tracked). Anything more than a
+  day old was describing a different world: pull request states move, CI
+  results expire, version pins get bumped by automation.
+- Refresh it rather than packing it as-is. gobag records both timestamps and
+  the far side will be told the gap, but a note saying "this was already four
+  days stale" is a poor substitute for an accurate handoff.
+
+**Is anything you are carrying unversioned?**
+- Check whether each context document exists in a commit
+  (`git ls-files --error-unmatch <path>`). A design doc that lives only in this
+  workspace becomes *solely* the archive's responsibility the moment the
+  machine goes away — and pack will tell you so.
+- Offer to commit and push it first. An archive is a single point of failure;
+  a pushed commit is not.
+
 **What context is worth carrying?**
 - Design docs, notes, scratch analyses that a successor would need. Prefer a
   few load-bearing documents over everything you can find.

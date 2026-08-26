@@ -15,8 +15,10 @@ import (
 	"io"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/satmihir/gobag/internal/gitops"
+	"github.com/satmihir/gobag/internal/host"
 	"github.com/satmihir/gobag/internal/manifest"
 	"github.com/satmihir/gobag/internal/overlay"
 )
@@ -42,6 +44,10 @@ type Input struct {
 	Notes []string
 	// HandoffPath is the archive-relative handoff document, if one travelled.
 	HandoffPath string
+	// CurrentHost is this machine, compared against the one that packed the
+	// archive. A restore that cannot say which machine it is on invites the
+	// reader to guess, and a uniform fleet makes the wrong guess look obvious.
+	CurrentHost host.Info
 }
 
 // Render writes the orientation document.
@@ -50,6 +56,7 @@ func Render(w io.Writer, in Input) error {
 
 	b.WriteString("# Orientation\n\n")
 	b.WriteString(intro(in))
+	writeHostVerdict(&b, in)
 
 	writeRestored(&b, in)
 	writeSincePacked(&b, in)
@@ -79,6 +86,49 @@ func intro(in Input) string {
 			"on disk and what changed while the workspace was packed; it does "+
 			"not describe intent.%s\n",
 		name, orDefault(created, " packed earlier"), from)
+}
+
+// writeHostVerdict states the same-machine question outright, in both
+// directions.
+//
+// Leaving it unstated is how a restore goes wrong quietly: on a fleet with a
+// uniform layout, same-named clones sit at the same paths on every box, so a
+// reader with no host information will reasonably conclude "same machine,
+// stale bag" and start editing the wrong tree. The comparison is cheap; the
+// wrong guess is not.
+func writeHostVerdict(b *strings.Builder, in Input) {
+	var packed *host.Info
+	if in.Manifest != nil {
+		packed = in.Manifest.Host
+	}
+	if packed == nil {
+		b.WriteString("\n**This archive records no host identity** (it predates that field), " +
+			"so whether it was packed on this machine cannot be established. Treat " +
+			"same-named repositories already present here as unrelated until you have " +
+			"checked, and do your work in the restored tree.\n")
+		return
+	}
+
+	switch host.Compare(*packed, in.CurrentHost) {
+	case host.SameHost:
+		b.WriteString(fmt.Sprintf(
+			"\n**Packed and restored on the same machine** (%s). Anything you recognize "+
+				"here may genuinely be the workspace this bag came from.\n",
+			packed.Describe()))
+	case host.DifferentHost:
+		b.WriteString(fmt.Sprintf(
+			"\n**Packed on %s; restored on %s — different machines.** Any same-named "+
+				"repository or path that already exists here is unrelated to this archive, "+
+				"however familiar it looks. The work this bag carries is in the restored "+
+				"tree at `%s`.\n",
+			packed.Describe(), in.CurrentHost.Describe(), in.Root))
+	default:
+		b.WriteString(fmt.Sprintf(
+			"\n**Cannot determine whether this is the machine that packed the archive** "+
+				"(packed on %s; no stable identifier on one side or the other). Do not "+
+				"assume a same-named repository here is the one this bag describes.\n",
+			packed.Describe()))
+	}
 }
 
 func writeRestored(b *strings.Builder, in Input) {
@@ -130,6 +180,19 @@ func writeSincePacked(b *strings.Builder, in Input) {
 
 	var moved bool
 	for _, r := range reality {
+		// Base drift is reported first and unconditionally: for a bag packed
+		// mid-pull-request it is the whole answer, and "the tip has not moved"
+		// on its own reads as "nothing happened".
+		if r.BaseBranch != "" && r.BaseBehind > 0 {
+			b.WriteString(fmt.Sprintf(
+				"- `%s` — pinned to `%s`, whose tip is unchanged, but `%s` has advanced "+
+					"%s underneath it (%d ahead, %d behind). Anything the handoff says about "+
+					"merge state, CI, or dependency versions may already be false.\n",
+				r.Dest, r.PinnedBranch, r.BaseBranch,
+				plural(r.BaseBehind, "commit"), r.BaseAhead, r.BaseBehind))
+			moved = true
+		}
+
 		switch {
 		case r.Unreachable:
 			b.WriteString(fmt.Sprintf(
@@ -167,10 +230,14 @@ func writeConflicts(b *strings.Builder, in Input) {
 	notes := append([]string(nil), in.Notes...)
 	sort.Strings(notes)
 
-	if len(conflicts) == 0 && len(notes) == 0 {
+	extra := advisories(in)
+	if len(conflicts) == 0 && len(notes) == 0 && len(extra) == 0 {
 		return
 	}
 	b.WriteString("\n## Conflicts and skips\n\n")
+	for _, a := range extra {
+		b.WriteString("- " + a + "\n")
+	}
 	for _, c := range conflicts {
 		b.WriteString(fmt.Sprintf(
 			"- `%s` already existed and differed. Your copy was kept; the archived "+
@@ -179,6 +246,60 @@ func writeConflicts(b *strings.Builder, in Input) {
 	for _, n := range notes {
 		b.WriteString("- " + n + "\n")
 	}
+}
+
+// advisories are the facts that are nobody's fault and still change how much
+// the handoff can be trusted.
+func advisories(in Input) []string {
+	if in.Manifest == nil {
+		return nil
+	}
+	var out []string
+
+	// A handoff written days before the pack describes a world that had
+	// already moved on by the time the bag was sealed.
+	if in.HandoffPath != "" {
+		if written, ok := in.Manifest.ContextModified[in.HandoffPath]; ok {
+			if gap, ok := staleness(written, in.Manifest.Created); ok {
+				out = append(out, fmt.Sprintf(
+					"`%s` was last modified %s before this archive was packed. Time-sensitive "+
+						"claims in it — pull request states, CI results, version pins, what is "+
+						"still open — were already that old when the bag was sealed.",
+					in.HandoffPath, gap))
+			}
+		}
+	}
+
+	if n := len(in.Manifest.SoleCopies); n > 0 {
+		sole := append([]string(nil), in.Manifest.SoleCopies...)
+		sort.Strings(sole)
+		out = append(out, fmt.Sprintf(
+			"This archive is the only copy of %s that %s in no commit: %s. "+
+				"If that work matters, commit it somewhere durable.",
+			plural(n, "file"), agree(n, "exists", "exist"),
+			"`"+strings.Join(sole, "`, `")+"`"))
+	}
+	return out
+}
+
+// staleness reports how long before the pack a document was last written,
+// suppressing gaps too small to be worth a line.
+func staleness(written, packed string) (string, bool) {
+	w, err1 := time.Parse(time.RFC3339, written)
+	p, err2 := time.Parse(time.RFC3339, packed)
+	if err1 != nil || err2 != nil {
+		return "", false
+	}
+	gap := p.Sub(w)
+	if gap < 24*time.Hour {
+		return "", false
+	}
+	days := int(gap.Hours()) / 24
+	hours := int(gap.Hours()) % 24
+	if hours == 0 {
+		return plural(days, "day"), true
+	}
+	return fmt.Sprintf("%s %dh", plural(days, "day"), hours), true
 }
 
 func writeStartHere(b *strings.Builder, in Input) {
@@ -201,6 +322,14 @@ func shortRef(ref string) string {
 		return ref[:12]
 	}
 	return ref
+}
+
+// agree picks a verb form matching a count.
+func agree(n int, singular, plural string) string {
+	if n == 1 {
+		return singular
+	}
+	return plural
 }
 
 func plural(n int, noun string) string {
