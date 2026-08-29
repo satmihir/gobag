@@ -1,23 +1,66 @@
 # gobag
 
-**Your agent's go-bag.** A long-running Claude Code session accumulates
-something worth keeping: distilled context, memory, skills, and a multi-repo
-workspace it knows its way around. That teammate is trapped on one machine, and
-on a devcontainer or spot instance, that machine disappears.
+> **Your agent's go-bag.** Pack the thread, not the machine.
 
-Mostly it isn't the machine that dies. The session ends, context gets compacted
-away, and eleven days later the files are all still there while the thread has
-gone cold.
+[![CI](https://github.com/satmihir/gobag/actions/workflows/ci.yml/badge.svg)](https://github.com/satmihir/gobag/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/satmihir/gobag)](https://github.com/satmihir/gobag/releases)
+[![License](https://img.shields.io/github/license/satmihir/gobag)](LICENSE)
 
-gobag has the session write down what it knows — the sources it actually
-touched, a handoff document it maintains itself, its expectations about where
-things live — and keeps that record current as you work. When you need it
-somewhere else, it seals into a single encrypted archive that a fresh session
-anywhere picks up already oriented.
+A long-running Claude Code session turns into something worth keeping: it knows
+your repos, the decisions and their reasons, the dead ends, the landmine that
+cost you an afternoon. All of it lives in one directory on one machine — and it
+dies quietly. A devcontainer gets recycled. A spot instance disappears. Most
+often nothing dies at all: the session ends, context gets compacted away, and
+two weeks later the files are intact but the thread is gone.
 
-> Status: v0.1.0 released. The archive format may still move before v1.
+gobag makes the thread durable. The session writes down what it knows, keeps
+that record current as you work, and seals it into a tiny encrypted archive.
+A fresh session — tomorrow, on another machine, after a compaction — picks it
+up **oriented, not amnesiac**.
 
-## Install
+## The moment it clicks
+
+You seal a workspace mid–pull-request on a dying devcontainer:
+
+```
+$ gobag seal -label "mid token-refresh PR"
+packing "api-migration" — 2 sources, 3 files
+
+Packed: /home/dev/api-migration.gobag (2.1 KB)
+```
+
+Yes, 2.1 KB — repos travel as pinned references, not content. A week later you
+restore on your workstation, and the first thing the new session reads is
+`ORIENTATION.md`, which gobag wrote by comparing the archive against the world
+as it is *now*:
+
+```markdown
+**Packed on devbox-3f9c (a container); restored on workstation — different
+machines.** Any same-named repository that already exists here is unrelated
+to this archive, however familiar it looks.
+
+## Since you were packed
+
+- `repos/api` — pinned to `user/token-refresh`, whose tip is unchanged, but
+  `main` has advanced 95 commits underneath it (1 ahead, 95 behind). Anything
+  the handoff says about merge state, CI, or dependency versions may already
+  be false.
+
+## Start here
+
+Read `context/HANDOFF.md` next. It carries the previous session's account of
+the work: goal and status, open threads, decisions and their reasoning.
+```
+
+That second bullet is the one that saves you: your branch didn't move, so every
+other tool would say "nothing changed." gobag tells the new session exactly
+what its predecessor could not have known — that the ground moved underneath
+the work — before it confidently acts on stale beliefs.
+
+Then it reads the handoff its predecessor wrote — goal, open threads, the
+reasoning behind decisions — and continues the work instead of rediscovering it.
+
+## Try it in two minutes
 
 In Claude Code:
 
@@ -26,185 +69,131 @@ In Claude Code:
 /plugin install gobag@gobag
 ```
 
-That gives you `/checkpoint` and `/restore`, plus the hooks that keep a
-workspace's record current. The binary installs itself, checksum-verified, the
-first time a skill needs it.
+That's the whole install. The binary fetches itself, checksum-verified, the
+first time a skill needs it. Then either:
 
-Headless (CI, provisioning scripts, a spot instance with no session running):
+- **`/checkpoint`** — one shot, right now. The session interrogates itself
+  about what it actually touched, writes the handoff, and packs. Built for the
+  machine-is-dying moment.
+- **`gobag stage init`** — start keeping the thread alive continuously
+  (read on).
+
+And on any other machine: `/restore <file>.gobag`. Headless boxes skip the
+plugin entirely:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/satmihir/gobag/main/scripts/install.sh | sh
+gobag install teammate.gobag
 ```
 
-## Two ways to use it
+## Keep the thread alive between machines dying
 
-### Keeping a thread alive (the common one)
+Machines die rarely. Sessions die constantly — and compaction is a small death
+in the middle of a live one. `gobag stage init` starts a living record of the
+thread in `.gobag/stage/`: the handoff document plus pinned refs, as plain
+files. The plugin's hooks then keep it honest without ever getting in your way:
 
-```bash
-gobag stage init
-```
+- When your context is about to be compacted, gobag records that it happened.
+- On a later prompt — and only when the record has actually fallen behind —
+  the session gets one nudge:
 
-The workspace starts keeping a record of the thread in `.gobag/stage/`: a
-living `HANDOFF.md` plus the repository refs. Plain files, deliberately
-unencrypted — they sit next to the repos and `.env` files they describe, all
-equally unencrypted, and the threat model for an archive is transit, not
-residence.
+  > Your context was compacted at 15:54. This workspace keeps a running record
+  > of the thread at `.gobag/stage/HANDOFF.md`, last revised before that
+  > compaction... **Read it first: it may already contain work you no longer
+  > remember doing.**
 
-From then on the plugin's hooks keep it honest:
+- Every session end takes a last mechanical snapshot of where the refs stand.
 
-- **PreCompact** records that your context was about to be compacted away.
-- **UserPromptSubmit** stays silent on virtually every prompt — and speaks only
-  when the record has fallen behind something that actually happened:
+The rule that makes this work across compactions: **the record is the source
+of truth about the thread; a session is only ever its editor.** Sessions read
+it before revising it, because the session doing the writing may not remember
+what it wrote an hour ago.
 
-  > Your context was compacted at 15:54 on 29 Aug. This workspace keeps a
-  > running record of the thread at `.gobag/stage/HANDOFF.md`, last revised
-  > before that compaction... Read it first: it may already contain work you no
-  > longer remember doing.
-
-- **SessionEnd** takes a last mechanical snapshot of where the refs stand.
-
-Check on it any time, and ship it when you want something portable:
+When you want something shippable, sealing the warm record takes seconds:
 
 ```bash
-gobag stage status
 gobag seal -label "after the auth refactor"
 ```
 
-Sealing a warm stage takes seconds rather than a full interrogation — which is
-the point, because cheap seals are the ones that actually happen.
+## What the archive knows that you'd have to guess
 
-### One shot, right now (the machine is dying)
+`install` doesn't just unpack — it interrogates reality and writes down the
+answers:
 
-```
-/checkpoint
-```
-
-No stage required. The session enumerates what it actually touched, writes a
-handoff, sanitizes it, and packs everything into `teammate-<timestamp>.gobag`.
-It warns about the things that will disappoint you later — uncommitted work,
-unpushed refs, repositories with no remote, credentials about to be sealed in,
-and files this archive is about to become the only copy of.
-
-Move the file however you like. gobag has no service and no sync: `scp`, S3, a
-USB stick, your problem.
-
-### Picking it up on the other side
-
-```
-/restore ~/Downloads/teammate-20260816-1432.gobag
-```
-
-The new session restores the repositories, reads what changed while the bag was
-packed, reads its predecessor's notes, and tells you where things stand.
-
-## What travels
-
-| Travels | Does not |
+| It states outright | So the new session never |
 | --- | --- |
-| Repositories as references (remote + pinned ref) | Repository contents |
-| The handoff document the session wrote | Uncommitted changes |
-| Claude Code memory and skills | Anything unpushed |
-| Worktree topology, MCP config | Session transcripts, unless you ask |
+| Same machine or different one (hashed host identity) | Mistakes a look-alike clone for the original on a uniform fleet |
+| How far `main` moved under your pinned feature branch | Trusts a handoff the world has already falsified |
+| Which carried files exist in **no commit anywhere** | Lets the archive silently become the last copy of real work |
+| How stale the handoff already was when sealed | Reads a four-day-old status table as current |
+| Every repo it deliberately left untouched | Wonders whether its dirty checkout was clobbered (it never is) |
 
-Repositories travel as references, which is why archives are megabytes rather
-than gigabytes, and why a restore gives you a fresh clone rather than stale
-bits.
+At pack time the same honesty runs in reverse: warnings for uncommitted work,
+unpushed refs, remote-less repos, possible credentials in the files about to be
+sealed — including the ones the agent itself wrote.
 
-## Repositories too big to clone
+## The 30 GB monorepo
 
-A monorepo of tens of gigabytes can't be cloned once per restore — and on any
-machine where you'd restore it, you almost certainly already have a clone. So
-it travels as a *located* reference instead:
+A monorepo can't be cloned once per restore — and on any machine where you'd
+restore it, a clone almost certainly already exists. gobag measures each repo
+and, past a threshold, ships a *located reference* instead:
 
 ```
-$ gobag install team.gobag --root ~/ws/proj
+$ gobag install team.gobag
   repos/monorepo: not-linked
   repos/small:    cloned
 
 $ gobag link repos/monorepo ~/src/monorepo
 repos/monorepo: linked
-  linked as a worktree of ~/src/monorepo at 97f576e5, detached
-  — objects are shared, nothing was cloned
+  linked as a worktree of ~/src/monorepo, detached — objects are shared,
+  nothing was cloned
   remembered — future restores will link it without asking
 ```
 
-gobag measures each repo and marks anything past 1GB external (tune with
-`--external-threshold`, force with `--external DEST`). Install never clones
-one; it attaches a linked worktree to the clone you already have, so the
-object store stays single and your main checkout never moves. Answer once per
-machine and later restores link it automatically.
+Your workspace gets its own checkout at the pinned ref, the 30 GB object store
+stays single, and the branch your main clone is sitting on never moves. Answer
+"where does it live?" once per machine.
 
-## The interesting part
+## What never happens
 
-`install` does not just unpack. It compares what the archive remembers against
-the world as it is now, and writes `ORIENTATION.md`: main advanced fourteen
-commits, this worktree was recreated, that remote is unreachable, these files
-you had already differed and were left alone.
+- **Nothing leaves the machine unencrypted.** Archives are age-encrypted by
+  default; `--plaintext` is a loud, explicit opt-out.
+- **Nothing of yours is ever destroyed.** Restore into a directory holding real
+  work: your files win, the archived versions land beside them as
+  `.from-gobag`, dirty and diverged repos are left byte-for-byte alone. Every
+  step is idempotent — re-run after any interruption and it converges.
+- **Nothing runs in the background.** No daemon, no sync service, no server.
+  The archive is the product; move it with scp, S3, or a USB stick.
+- **Hooks never act on their own.** They keep the record current and at most
+  tell the session to go read it. They never download anything, and they exit
+  silently in any workspace without a record.
+- **One deliberate exception to "nothing outside the workspace":**
+  `~/.gobag/machine.json` remembers where your big repos live on this machine —
+  written only by an explicit `gobag link`, never as a side effect.
 
-It also states the things a restored session would otherwise have to guess:
-whether this is even the machine that packed the bag (on a uniform fleet, a
-familiar-looking clone is not evidence), how far the default branch moved under
-a pinned feature branch, which carried files exist in no commit, and how stale
-the handoff already was when it was sealed.
+## Why not…
 
-The same discipline runs through the stage: **it is the source of truth about
-the thread, and a session is only ever its editor.** Read it before writing it —
-the session doing the writing may have been compacted since it last wrote, and
-may not remember writing at all.
+**`docker commit`?** Bakes secrets into immutable layers, ships gigabytes to
+move what gobag moves in kilobytes, freezes repos as stale bits with no
+catch-up protocol — and your target environment is usually already a container.
+Docker is the venue, not the luggage.
 
-Restore then has two documents that say different kinds of thing:
+**A context doc in a gist?** That's the habit gobag grew from — productized,
+with the repo refs, the encryption, the secret scan, and the reality diff your
+gist can't do.
 
-- `ORIENTATION.md` is **fact** — what is on disk and what moved.
-- `context/HANDOFF.md` is **intent** — the previous session's goal, open
-  threads, decisions, and expectations.
+**`tar`?** tar cannot tell your agent that `main` moved 95 commits while the
+bag was in transit. That sentence is the product.
 
-The gap between them is the most valuable thing in the bag: it is exactly what
-the previous session could not have known.
+## Under the hood
 
-## Safety
+Single static Go binary (three dependencies), verbs not services:
+`pack` · `install` · `stage` · `seal` · `link` · `inspect` · `verify`.
+The skills do the thinking; the binary verifies every claim they make —
+agent output is treated as untrusted input, always.
 
-- **Encrypted by default** (age, passphrase). `--plaintext` is an explicit
-  opt-out, because a handoff document is a credential-shaped object.
-- **Secret-scanned at pack time**, including the agent's own writing. Model
-  sanitization is a courtesy, not a boundary. Warnings never block.
-- **Never destroys.** Restoring into a directory that already holds work keeps
-  your version and writes the archived one beside it as `.from-gobag`.
-  Every step is idempotent; re-running after an interruption converges.
-- **No absolute paths** in the archive, no daemon, no background process.
-- **Almost nothing outside your workspace.** The record lives in
-  `.gobag/stage/` inside the workspace it describes. The one exception is
-  `~/.gobag/machine.json`, which remembers where your large repositories live
-  on this machine — written only when you explicitly run `gobag link`, never as
-  a side effect of packing or restoring.
-- **Hooks never act on their own.** They keep the record current and, at most,
-  tell the session to go read it. They never install anything, never inject an
-  archive's contents into a session, and exit silently in any workspace that has
-  no record.
-
-## Why not Docker?
-
-Docker ships environments; gobag ships working state.
-
-`docker commit` bakes secrets into immutable layers, moves gigabytes to carry
-megabytes, freezes repositories as stale bits with no catch-up protocol, and
-misses bind-mounted repos entirely. And structurally, the target environment is
-usually already a container — Docker is the venue, not the luggage.
-
-Dockerfile plus init scripts plus a state tarball is gobag's walk mode,
-hand-rolled per person, minus encryption, secret scanning, worktree recreation,
-reconciliation, and the session's own account of what mattered.
-
-**Why not just a context doc in git?** That is the habit gobag grew from. This
-is that habit, productized: with the repository refs, the reality diff, the
-encryption, and the state your context doc never captured.
-
-**Why not `tar`?** tar cannot tell your agent that main moved fourteen commits.
-
-## Design
-
-[DESIGN.md](DESIGN.md) is the reasoning; [PLAN.md](PLAN.md) is the build order;
-[CLAUDE.md](CLAUDE.md) is the set of constraints this project refuses to drift
-from.
+[DESIGN.md](DESIGN.md) has the reasoning, [PLAN.md](PLAN.md) the build order,
+and [CLAUDE.md](CLAUDE.md) the constraints this project refuses to drift from.
 
 ## License
 
