@@ -48,6 +48,19 @@ build order — follow it milestone by milestone.
   comes from `context/HANDOFF.md`. Do not implement JSONL path
   rewriting; do not make any restore behavior depend on transcript
   contents.
+- **The stage is the source of truth about the thread; a session is only
+  its editor.** Anything that touches `.gobag/stage/` reads it first and
+  revises — never rewrites from session memory, because compaction may
+  have intervened since the last write. Hooks write outward to the stage;
+  they never inject stage or bag contents into a session.
+- **Stage plaintext stays inside the workspace.** `.gobag/stage/` is
+  deliberately unencrypted (the threat model is transit, not residence);
+  the encryption boundary is `gobag seal`, and nothing crosses the
+  machine boundary unencrypted. Do not add encryption to the stage, and
+  do not let staged content be written outside the workspace root.
+- **The one-shot path survives.** `pack`/`install`/`/checkpoint` with no
+  stage present must keep working exactly as today — stage and seal are
+  additive, never prerequisites. Do not make `pack` depend on a stage.
 - **Restore is explicit.** `/restore <archive>` is the only way a packed
   session's context enters a new session — it starts a new teammate
   briefed by the old one's notes. No hook injects orientation silently
@@ -56,6 +69,21 @@ build order — follow it milestone by milestone.
   other agents. v1 has no cross-agent anything.
 - **v1 does not capture uncommitted changes.** Do not implement
   patch/bundle capture without being asked.
+
+## Stage semantics (quick reference)
+
+- `.gobag/stage/` holds `plan.json`, `HANDOFF.md`, series metadata.
+- `gobag stage refresh` is mechanical only (refs, branches, dirty flags)
+  and must stay headless-safe: no prompts, no network hangs beyond the
+  usual timeouts, exit 0 on a merely stale stage.
+- `gobag stage status` reports staleness (handoff age, refs moved, base
+  drift) reusing the reconcile/reality machinery — do not fork a second
+  staleness implementation.
+- `gobag seal` = stage → verify → scan → encrypt. It is the only place
+  the passphrase ceremony happens in the stage flow.
+- Plugin hooks: PreCompact injects the "update the stage, read it first"
+  instruction; SessionEnd runs mechanical refresh only. A session that is
+  already gone cannot be asked for narrative.
 
 ## Style
 

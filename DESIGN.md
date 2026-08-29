@@ -100,7 +100,7 @@ keep going.
 
 ## CLI surface (v1)
 
-Single static Go binary, four verbs, no daemon:
+Single static Go binary, no daemon:
 
 - `gobag pack`     — primary form: `--plan plan.json` (skill-driven).
                      Fallback form: `gobag pack <root>` walks a directory
@@ -119,6 +119,13 @@ Single static Go binary, four verbs, no daemon:
                      Safe on a dirty target: fetch + fast-forward instead
                      of re-clone, overlay state, regenerate orientation
                      against current reality. Every step idempotent.
+- `gobag stage`    — maintain the thread's living record in
+                     `.gobag/stage/`: `refresh` updates the mechanical
+                     facts (refs, branches, dirty flags) headlessly;
+                     `status` reports how stale the stage is. See
+                     "Stage and seal".
+- `gobag seal`     — the human-triggered ship moment: stage → verify →
+                     secret-scan → encrypt → `.gobag` + boarding pass.
 - `gobag inspect`  — list contents + manifest without installing.
 - `gobag verify`   — validate checksums.
 
@@ -140,6 +147,97 @@ voices:
 This is the moat over `docker commit`, bare `tar`, and a context doc in a
 gist: none of them can tell your agent that the world moved while it was
 in the bag.
+
+## Stage and seal
+
+The evacuation flow above treats a checkpoint as an event. But threads
+are mostly lost without any machine dying: the session ends, context is
+compacted away, and eleven days later the files are intact and the
+narrative is cold. Two mortalities, two mechanisms:
+
+- **Session death, box alive** — covered by the *stage*: the thread's
+  record, continuously maintained on the box.
+- **Box death** — covered by the *seal*: the stage, encrypted and
+  shipped.
+
+The one-shot flow (`/checkpoint` → `pack` → `/restore`) is unchanged and
+stays first-class. It is the right shape when there is no stage and no
+time — the machine is dying now. Stage and seal are additive, never
+required.
+
+### The stage
+
+`.gobag/stage/` in the workspace root: `plan.json`, the living
+`HANDOFF.md`, series metadata, timestamps. Plain unencrypted files, on
+purpose: the stage sits beside the actual repos and the actual `.env`
+files, all equally unencrypted. The threat model for archives is
+transit, not residence — and the existing constraint ("no plaintext
+outside the user's workspace") already draws exactly this line. Nothing
+crosses the machine boundary unencrypted; inside it, the stage is just
+files.
+
+Freshness has two decay rates, with two maintainers:
+
+- **Mechanical** (refs, branches, dirty flags in `plan.json`): decays in
+  minutes; refreshed for free by `gobag stage refresh` — headless, no
+  agent, safe to run from a hook.
+- **Narrative** (the handoff): decays at milestone scale; refreshed only
+  by the agent, at moments it judges worth recording — a milestone
+  landed, a decision made, a direction abandoned, something risky about
+  to be attempted. Snapshot on meaning, not on the clock.
+
+### The continuity anchor
+
+The central rule: **the stage is the source of truth about the thread;
+a session is only ever its editor.** Every stage-touching operation
+begins by reading the stage — never by recalling it. The maintaining
+session may have been compacted since it last wrote and may not remember
+that it wrote at all. The skill's first instruction is: read
+`.gobag/stage/HANDOFF.md`; it knows things you don't, possibly including
+what you did an hour ago. Revise it — never rewrite it from memory.
+
+Consequence, and quietly the point: the stage doubles as the session's
+own external memory across compactions. The handoff stops being a letter
+written once for a successor and becomes a document maintained by a
+lineage of selves, any of whom may have just lost their memory. This is
+the compact-to-doc discipline the thesis grew from, made structural.
+
+### Hooks
+
+The plugin ships two hooks. Both write *outward* to the stage; neither
+injects a bag's contents into a session — restore stays explicit.
+
+- **PreCompact** — fires at the moment narrative is about to be lost.
+  Injects one instruction: update the stage before compacting, reading
+  it first. The agent externalizes with full pre-compaction context —
+  the last moment that context exists anywhere.
+- **SessionEnd** — the second net, catching the walked-away-from
+  session. Runs the mechanical `stage refresh` only; narrative cannot be
+  demanded of a session that is already gone.
+
+### Staleness
+
+A stale stage that looks alive reproduces the confident-wrong-conclusion
+failure from issue #1. `gobag stage status` reports what the
+archive-side advisories already report: handoff age, refs moved since
+staging, base drift against the default branch. Skills read status
+before trusting the stage; seal stamps the same advisories into the
+archive it produces.
+
+### The seal
+
+`gobag seal` is the deliberate, human-triggered ship moment: stage →
+verify → secret-scan → encrypt → `.gobag` + boarding pass. The
+passphrase ceremony happens once, when it means something. Because the
+stage is always warm, a seal costs seconds instead of a five-minute
+interrogation — which is itself the mechanism that makes resuming ever
+more likely: cheap seals happen often.
+
+Deliberate punts: concurrent sessions editing one stage (last-writer
+wins, with a warning when the stage changed underneath; merging is not a
+v1 problem), and auto-seal on termination signals (a spot-instance
+notice triggering a headless walk-mode seal is a natural later tier;
+human-triggered sealing is the default).
 
 ## Repositories too large to clone
 
@@ -300,6 +398,13 @@ The plugin is the front door; the binary is a bootstrapped dependency.
 4. Richer interrogation templates (per-project checkpoint questions).
 5. Opt-in SessionStart hook that surfaces a fresh `ORIENTATION.md` in a
    restored workspace — offered by `/restore`, never installed silently.
-6. Cross-agent converters (the multi-subscription crowd) — the handoff
+6. Timeline browsing over accumulated seals (`gobag timeline <dir>`,
+   `gobag diff <a> <b>`): sealed bags in one directory already form a
+   journal of the thread; listing and diffing them is cheap because
+   archives are manifests plus small documents. Rewind is a side effect,
+   not a goal — the stage covers "not missing out on a thread".
+7. Auto-seal on termination signals (spot-instance notice → headless
+   walk-mode seal).
+8. Cross-agent converters (the multi-subscription crowd) — the handoff
    doc is already agent-agnostic prose, so this gets cheaper, not
    harder.
