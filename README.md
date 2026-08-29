@@ -1,10 +1,16 @@
-# gobag
+<p align="center">
+  <img src="assets/logo.png" width="340" alt="gobag: a duffel bag with a thread spooling out of the zipper">
+</p>
 
-> **Your agent's go-bag.** Pack the thread, not the machine.
+<h1 align="center">gobag</h1>
 
-[![CI](https://github.com/satmihir/gobag/actions/workflows/ci.yml/badge.svg)](https://github.com/satmihir/gobag/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/satmihir/gobag)](https://github.com/satmihir/gobag/releases)
-[![License](https://img.shields.io/github/license/satmihir/gobag)](LICENSE)
+<p align="center"><b>Your agent's go-bag. Pack the thread, not the machine.</b></p>
+
+<p align="center">
+  <a href="https://github.com/satmihir/gobag/actions/workflows/ci.yml"><img src="https://github.com/satmihir/gobag/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/satmihir/gobag/releases"><img src="https://img.shields.io/github/v/release/satmihir/gobag" alt="Release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/satmihir/gobag" alt="License"></a>
+</p>
 
 A long-running Claude Code session turns into something worth keeping: it knows
 your repos, the decisions and their reasons, the dead ends, the landmine that
