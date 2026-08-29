@@ -81,9 +81,15 @@ build order — follow it milestone by milestone.
   staleness implementation.
 - `gobag seal` = stage → verify → scan → encrypt. It is the only place
   the passphrase ceremony happens in the stage flow.
-- Plugin hooks: PreCompact injects the "update the stage, read it first"
-  instruction; SessionEnd runs mechanical refresh only. A session that is
-  already gone cannot be asked for narrative.
+- Plugin hooks: PreCompact records the compaction (mechanical only — it
+  cannot elicit narrative, and there is no model turn before compaction);
+  UserPromptSubmit runs `stage nudge`, which is silent unless a
+  compaction post-dates the last narrative revision; SessionEnd runs a
+  mechanical refresh. Hooks never bootstrap the binary and never fail a
+  session: no stage or no binary means exit 0 and no output.
+- `stamp()` in internal/stage uses RFC3339**Nano**. Second granularity
+  silently reads as "the narrative is current" when a compaction lands
+  in the same second as a handoff edit.
 
 ## Style
 
@@ -108,13 +114,21 @@ build order — follow it milestone by milestone.
                           `.from-gobag` conflict rule lives
 - `internal/claudestate/` — Claude Code's encoded-cwd scheme and the
                           memory re-key
+- `internal/stage/`     — the thread's living record (.gobag/stage/),
+                          staleness, and the nudge decision
+- `internal/host/`      — machine identity recorded at pack time
+- `internal/machine/`   — the per-machine external-repo registry
 - `internal/testutil/`  — fixture workspaces built at run time (never
                           check in a nested `.git`)
 - `.claude-plugin/`     — plugin.json + marketplace.json (the repo is
                           its own marketplace)
 - `skills/`             — the plugin skills: `checkpoint/SKILL.md`,
                           `restore/SKILL.md`
-- `scripts/`            — `gobag-bootstrap.sh` (pinned first-use install,
+- `hooks/hooks.json`    — PreCompact / UserPromptSubmit / SessionEnd,
+                          all routed through `scripts/gobag-hook.sh`
+- `scripts/`            — `gobag-hook.sh` (hook entry point; silent and
+                          exit 0 always), `gobag-bootstrap.sh` (pinned
+                          first-use install,
                           called by both skills), `install.sh` (headless
                           curl|sh), `release-pin.sh` (rewrites the pins;
                           never edit them by hand)

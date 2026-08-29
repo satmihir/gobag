@@ -260,7 +260,7 @@ func advisories(in Input) []string {
 	// already moved on by the time the bag was sealed.
 	if in.HandoffPath != "" {
 		if written, ok := in.Manifest.ContextModified[in.HandoffPath]; ok {
-			if gap, ok := staleness(written, in.Manifest.Created); ok {
+			if gap, ok := Staleness(written, in.Manifest.Created); ok {
 				out = append(out, fmt.Sprintf(
 					"`%s` was last modified %s before this archive was packed. Time-sensitive "+
 						"claims in it — pull request states, CI results, version pins, what is "+
@@ -282,9 +282,11 @@ func advisories(in Input) []string {
 	return out
 }
 
-// staleness reports how long before the pack a document was last written,
-// suppressing gaps too small to be worth a line.
-func staleness(written, packed string) (string, bool) {
+// Staleness reports how long before a reference time a document was last
+// written, suppressing gaps too small to be worth a line. Exported because the
+// stage reports the same fact about its own handoff, and two implementations of
+// "how stale is this" would inevitably disagree.
+func Staleness(written, packed string) (string, bool) {
 	w, err1 := time.Parse(time.RFC3339, written)
 	p, err2 := time.Parse(time.RFC3339, packed)
 	if err1 != nil || err2 != nil {

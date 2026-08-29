@@ -136,14 +136,27 @@ func cmdPack(args []string, stdout, stderr io.Writer) error {
 		return errUser("plan has %d problem(s) that must be fixed before packing", len(errs))
 	}
 
+	_, err = runPack(p, sourceRoot, opts, warns, nil, stdout, stderr)
+	return err
+}
+
+// runPack is the shared sealing pipeline: expand, report, encrypt, announce.
+// Both `pack` and `seal` go through it, so an archive is an archive however it
+// was produced and restore never has to care which verb made it.
+//
+// lineage, when set, records the thread a seal belongs to. It is nil for a
+// one-shot pack, which belongs to no series.
+func runPack(p *plan.Plan, sourceRoot string, opts packOptions, warns []plan.Problem,
+	lineage *manifest.Manifest, stdout, stderr io.Writer) (string, error) {
+
 	files, err := expandEntries(p.Entries(opts.transcripts))
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	printSummary(stdout, p, files, warns, opts)
 	if err := reportSecrets(stdout, files); err != nil {
-		return err
+		return "", err
 	}
 	sole := reportSoleCopies(stdout, p)
 
@@ -157,13 +170,13 @@ func cmdPack(args []string, stdout, stderr io.Writer) error {
 	if !opts.plaintext {
 		passphrase, err = readPassphrase("passphrase (encrypts the archive): ", true, stderr)
 		if err != nil {
-			return err
+			return "", err
 		}
 	}
 
-	size, err := writeArchive(outPath, p, files, sourceRoot, created, passphrase, opts.transcripts, sole)
+	size, err := writeArchive(outPath, p, files, sourceRoot, created, passphrase, opts.transcripts, sole, lineage)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	absOut, err := filepath.Abs(outPath)
@@ -171,7 +184,7 @@ func cmdPack(args []string, stdout, stderr io.Writer) error {
 		absOut = outPath
 	}
 	fmt.Fprint(stdout, boardingPass(absOut, humanSize(size), opts.plaintext))
-	return nil
+	return absOut, nil
 }
 
 // loadPlan returns the plan, the workspace root it came from, and anything
@@ -389,7 +402,8 @@ func expandEntries(entries []plan.Entry) ([]packFile, error) {
 }
 
 func writeArchive(outPath string, p *plan.Plan, files []packFile, sourceRoot string,
-	created time.Time, passphrase string, withTranscripts bool, sole []string) (int64, error) {
+	created time.Time, passphrase string, withTranscripts bool, sole []string,
+	lineage *manifest.Manifest) (int64, error) {
 
 	f, err := os.OpenFile(outPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
@@ -420,6 +434,10 @@ func writeArchive(outPath string, p *plan.Plan, files []packFile, sourceRoot str
 	m.Host = &h
 	m.ContextModified = contextTimes(p.Context)
 	m.SoleCopies = sole
+	if lineage != nil {
+		m.Series, m.Sequence, m.Previous, m.Label =
+			lineage.Series, lineage.Sequence, lineage.Previous, lineage.Label
+	}
 	var mb strings.Builder
 	if err := m.Encode(&mb); err != nil {
 		return 0, err

@@ -207,13 +207,29 @@ the compact-to-doc discipline the thesis grew from, made structural.
 The plugin ships two hooks. Both write *outward* to the stage; neither
 injects a bag's contents into a session — restore stays explicit.
 
-- **PreCompact** — fires at the moment narrative is about to be lost.
-  Injects one instruction: update the stage before compacting, reading
-  it first. The agent externalizes with full pre-compaction context —
-  the last moment that context exists anywhere.
-- **SessionEnd** — the second net, catching the walked-away-from
-  session. Runs the mechanical `stage refresh` only; narrative cannot be
-  demanded of a session that is already gone.
+Verified against the hooks reference, and it corrects an earlier
+assumption: `additionalContext` is supported on `UserPromptSubmit`,
+`Stop`, and `SubagentStop` — **not** on `PreCompact`, whose output is
+informational. There is also no model turn between PreCompact firing and
+compaction happening, so no instruction delivered there could be acted
+on. PreCompact therefore keeps the mechanical half and *records* the
+loss; the narrative nudge moves to where it actually lands.
+
+- **PreCompact** — `stage refresh --local --compaction`. Cannot elicit
+  narrative; what it can do is record that context was lost at this
+  moment, which is what makes the nudge below possible.
+- **UserPromptSubmit** — `stage nudge`. Silent on almost every prompt.
+  Emits `additionalContext` only when a recorded compaction post-dates
+  the last narrative revision, or the handoff has aged past
+  `StaleAfter`. Each condition is reported once: a reminder repeated
+  every prompt is noise the reader learns to skip. The nudge lands when
+  a human is present to approve the revision.
+- **SessionEnd** — `stage refresh --local`. The last mechanical
+  snapshot; narrative cannot be demanded of a session already gone.
+
+The hook entry point never bootstraps the binary: downloading something
+with no person present to consent is not a thing this tool does. No
+stage, or no gobag on PATH, means silence and exit 0.
 
 ### Staleness
 

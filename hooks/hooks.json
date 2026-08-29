@@ -1,0 +1,41 @@
+{
+  "description": "Keeps this workspace's thread record (.gobag/stage/) current: refreshes mechanical facts as the session runs, and asks for a narrative revision only when context was actually lost.",
+  "hooks": {
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/gobag-hook.sh",
+            "args": ["refresh", "--local", "--compaction"],
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/gobag-hook.sh",
+            "args": ["nudge"],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/gobag-hook.sh",
+            "args": ["refresh", "--local"],
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

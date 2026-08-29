@@ -14,6 +14,8 @@ const usage = `gobag — pack a Claude Code workspace into a portable archive.
 usage:
   gobag pack    --plan plan.json [-o out.gobag] [--plaintext] [--transcripts]
   gobag pack    <root>           [-o out.gobag] [--plaintext] [--transcripts]
+  gobag stage   <init|refresh|status|nudge>
+  gobag seal    [-o out.gobag] [-label "..."]
   gobag install <archive> [--root DIR]
   gobag link    <dest> <path-to-clone> [--root DIR]
   gobag inspect <archive>
@@ -38,6 +40,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 		err = cmdPack(args[1:], stdout, stderr)
 	case "install":
 		err = cmdInstall(args[1:], stdout, stderr)
+	case "stage":
+		err = cmdStage(args[1:], stdout, stderr)
+	case "seal":
+		err = cmdSeal(args[1:], stdout, stderr)
 	case "link":
 		err = cmdLink(args[1:], stdout, stderr)
 	case "inspect":

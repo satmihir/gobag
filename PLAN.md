@@ -351,7 +351,7 @@ installs a working binary on macOS and Linux.
 
 ---
 
-## M8 — Stage and seal (post-v0.1.0)
+## M8 — Stage and seal (post-v0.1.0) — DONE
 
 The continuous-thread mode from DESIGN.md "Stage and seal". Additive: no
 change to pack/install behavior when no stage exists.
@@ -369,10 +369,14 @@ change to pack/install behavior when no stage exists.
   scan, sole-copy report, encrypt, boarding pass). A seal is a normal
   archive; restore needs no changes. Record series metadata in the
   manifest (series, sequence, previous-checksum, label).
-- Plugin hooks (`hooks/hooks.json`): PreCompact → inject the
-  read-first/update instruction; SessionEnd → `gobag stage refresh`.
-  Both fail silent-but-logged when the binary is missing; a hook must
-  never break a session.
+- Plugin hooks (`hooks/hooks.json`), corrected during implementation:
+  `additionalContext` is not supported on PreCompact, and no model turn
+  exists between PreCompact and compaction, so PreCompact cannot elicit
+  narrative. Shipped set: PreCompact → `stage refresh --local
+  --compaction` (records the loss), UserPromptSubmit → `stage nudge`
+  (silent unless a compaction post-dates the last revision), SessionEnd
+  → `stage refresh --local`. All route through `scripts/gobag-hook.sh`,
+  which never bootstraps the binary and always exits 0.
 - Skill updates: /checkpoint gains "if a stage exists, refresh it and
   offer to seal; if not, offer to init one after the one-shot pack". The
   read-first continuity rule goes at the top of the stage instructions.

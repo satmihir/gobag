@@ -51,6 +51,16 @@ type Manifest struct {
 	// describes a world that had already moved on by the time it travelled.
 	ContextModified map[string]string `json:"context_modified,omitempty"`
 
+	// Series ties archives sealed from one workspace into a single thread:
+	// a stable id minted when the stage was created, an incrementing sequence,
+	// and the checksum of the previous seal. Lineage only — nothing in install
+	// depends on it, and a bag with no series restores exactly the same.
+	Series   string `json:"series,omitempty"`
+	Sequence int    `json:"sequence,omitempty"`
+	Previous string `json:"previous,omitempty"`
+	// Label is the one line a human wrote about why this moment mattered.
+	Label string `json:"label,omitempty"`
+
 	// SoleCopies lists destinations whose content exists in no commit
 	// anywhere, so this archive is their only copy once the packing workspace
 	// is gone.

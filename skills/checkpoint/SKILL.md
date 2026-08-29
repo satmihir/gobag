@@ -13,6 +13,29 @@ conversation, not your reasoning, not the things you never wrote down.
 The archive's real payload is the handoff document you are about to write.
 Everything else is scaffolding around it.
 
+## Step 0 — is this workspace already keeping a record?
+
+```bash
+gobag stage status
+```
+
+If a stage exists, **this is not a blank page**. The workspace has been
+maintaining a record of this thread across sessions, and you are its next
+editor, not its author:
+
+1. Read `.gobag/stage/HANDOFF.md` before writing anything. It may contain work
+   you no longer remember doing — your own context may have been compacted
+   since it was last revised, and `stage status` will tell you if it was.
+2. Revise it. Do not rewrite it from memory: your memory of this session is the
+   lossy copy, and that file is the durable one.
+3. Refresh the mechanical facts with `gobag stage refresh`, then seal when the
+   user wants something shippable: `gobag seal -label "why this moment mattered"`.
+   Sealing a warm stage takes seconds — the interrogation below is already done.
+
+If no stage exists, do the full interrogation below, and afterwards offer to
+start one with `gobag stage init` so the next session inherits a record instead
+of starting cold.
+
 ## Step 1 — ensure the binary
 
 ```bash

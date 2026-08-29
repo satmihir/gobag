@@ -42,11 +42,18 @@ type Reality struct {
 // The remote being down is an expected outcome, not an error: install runs on
 // whatever network the traveller landed on.
 func RemoteReality(root string, s manifest.Source) (Reality, error) {
-	r := Reality{Dest: s.Dest, PinnedRef: s.Ref, PinnedBranch: s.Branch}
 	dest, err := targetPath(root, s.Dest)
 	if err != nil {
-		return r, err
+		return Reality{Dest: s.Dest, PinnedRef: s.Ref, PinnedBranch: s.Branch}, err
 	}
+	return RealityAt(dest, s)
+}
+
+// RealityAt is RemoteReality against a checkout named by absolute path rather
+// than by archive destination. The stage needs this: its repositories sit
+// wherever the user actually keeps them, not under a restore root.
+func RealityAt(checkout string, s manifest.Source) (Reality, error) {
+	r := Reality{Dest: s.Dest, PinnedRef: s.Ref, PinnedBranch: s.Branch}
 	if s.Remote == "" {
 		r.Unreachable = true
 		return r, nil
@@ -55,9 +62,9 @@ func RemoteReality(root string, s manifest.Source) (Reality, error) {
 	// Run from inside the checkout when there is one, so any repository-local
 	// url rewriting or credential configuration applies.
 	dir := ""
-	inRepo := isRepo(dest)
+	inRepo := isRepo(checkout)
 	if inRepo {
-		dir = dest
+		dir = checkout
 	}
 
 	want := "HEAD"
