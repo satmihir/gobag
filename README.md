@@ -5,12 +5,17 @@ something worth keeping: distilled context, memory, skills, and a multi-repo
 workspace it knows its way around. That teammate is trapped on one machine, and
 on a devcontainer or spot instance, that machine disappears.
 
-gobag has the session pack its own working state — the sources it actually
-touched, a handoff document it writes itself, its expectations about where
-things live — into a single encrypted archive. A fresh session anywhere picks
-it up already oriented.
+Mostly it isn't the machine that dies. The session ends, context gets compacted
+away, and eleven days later the files are all still there while the thread has
+gone cold.
 
-> Status: v1 in development. The API and archive format may still move.
+gobag has the session write down what it knows — the sources it actually
+touched, a handoff document it maintains itself, its expectations about where
+things live — and keeps that record current as you work. When you need it
+somewhere else, it seals into a single encrypted archive that a fresh session
+anywhere picks up already oriented.
+
+> Status: v0.1.0 released. The archive format may still move before v1.
 
 ## Install
 
@@ -21,8 +26,9 @@ In Claude Code:
 /plugin install gobag@gobag
 ```
 
-That gives you `/checkpoint` and `/restore`. The binary installs itself,
-checksum-verified, the first time a skill needs it.
+That gives you `/checkpoint` and `/restore`, plus the hooks that keep a
+workspace's record current. The binary installs itself, checksum-verified, the
+first time a skill needs it.
 
 Headless (CI, provisioning scripts, a spot instance with no session running):
 
@@ -30,23 +36,59 @@ Headless (CI, provisioning scripts, a spot instance with no session running):
 curl -fsSL https://raw.githubusercontent.com/satmihir/gobag/main/scripts/install.sh | sh
 ```
 
-## Use
+## Two ways to use it
 
-Before the machine goes away:
+### Keeping a thread alive (the common one)
+
+```bash
+gobag stage init
+```
+
+The workspace starts keeping a record of the thread in `.gobag/stage/`: a
+living `HANDOFF.md` plus the repository refs. Plain files, deliberately
+unencrypted — they sit next to the repos and `.env` files they describe, all
+equally unencrypted, and the threat model for an archive is transit, not
+residence.
+
+From then on the plugin's hooks keep it honest:
+
+- **PreCompact** records that your context was about to be compacted away.
+- **UserPromptSubmit** stays silent on virtually every prompt — and speaks only
+  when the record has fallen behind something that actually happened:
+
+  > Your context was compacted at 15:54 on 29 Aug. This workspace keeps a
+  > running record of the thread at `.gobag/stage/HANDOFF.md`, last revised
+  > before that compaction... Read it first: it may already contain work you no
+  > longer remember doing.
+
+- **SessionEnd** takes a last mechanical snapshot of where the refs stand.
+
+Check on it any time, and ship it when you want something portable:
+
+```bash
+gobag stage status
+gobag seal -label "after the auth refactor"
+```
+
+Sealing a warm stage takes seconds rather than a full interrogation — which is
+the point, because cheap seals are the ones that actually happen.
+
+### One shot, right now (the machine is dying)
 
 ```
 /checkpoint
 ```
 
-The session enumerates what it actually touched, writes a handoff document,
-sanitizes it, and packs everything into `teammate-<timestamp>.gobag`. It warns
-about the things that will disappoint you later — uncommitted work, unpushed
-refs, repositories with no remote, credentials about to be sealed in.
+No stage required. The session enumerates what it actually touched, writes a
+handoff, sanitizes it, and packs everything into `teammate-<timestamp>.gobag`.
+It warns about the things that will disappoint you later — uncommitted work,
+unpushed refs, repositories with no remote, credentials about to be sealed in,
+and files this archive is about to become the only copy of.
 
 Move the file however you like. gobag has no service and no sync: `scp`, S3, a
 USB stick, your problem.
 
-On the other side:
+### Picking it up on the other side
 
 ```
 /restore ~/Downloads/teammate-20260816-1432.gobag
@@ -105,6 +147,11 @@ familiar-looking clone is not evidence), how far the default branch moved under
 a pinned feature branch, which carried files exist in no commit, and how stale
 the handoff already was when it was sealed.
 
+The same discipline runs through the stage: **it is the source of truth about
+the thread, and a session is only ever its editor.** Read it before writing it —
+the session doing the writing may have been compacted since it last wrote, and
+may not remember writing at all.
+
 Restore then has two documents that say different kinds of thing:
 
 - `ORIENTATION.md` is **fact** — what is on disk and what moved.
@@ -123,8 +170,16 @@ the previous session could not have known.
 - **Never destroys.** Restoring into a directory that already holds work keeps
   your version and writes the archived one beside it as `.from-gobag`.
   Every step is idempotent; re-running after an interruption converges.
-- **No absolute paths** in the archive, no daemon, no background process, no
-  state left behind.
+- **No absolute paths** in the archive, no daemon, no background process.
+- **Almost nothing outside your workspace.** The record lives in
+  `.gobag/stage/` inside the workspace it describes. The one exception is
+  `~/.gobag/machine.json`, which remembers where your large repositories live
+  on this machine — written only when you explicitly run `gobag link`, never as
+  a side effect of packing or restoring.
+- **Hooks never act on their own.** They keep the record current and, at most,
+  tell the session to go read it. They never install anything, never inject an
+  archive's contents into a session, and exit silently in any workspace that has
+  no record.
 
 ## Why not Docker?
 
