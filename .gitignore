@@ -37,3 +37,6 @@ dist/
 
 # stray archives from manual testing
 *.gobag
+
+# macOS
+.DS_Store
