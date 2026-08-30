@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "The gobag plugin: checkpoint a Claude Code workspace and restore it anywhere.",
-    "version": "0.1.0"
+    "version": "0.2.1"
   },
   "plugins": [
     {
       "name": "gobag",
       "source": "./",
       "description": "Pack a workspace into a portable encrypted archive with /checkpoint; pick it up on another machine with /restore.",
-      "version": "0.1.0",
+      "version": "0.2.1",
       "category": "workflow"
     }
   ]
