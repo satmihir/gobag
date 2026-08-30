@@ -8,14 +8,14 @@
 # Exit codes: 0 ready (path on stdout), 1 user/environment problem.
 set -eu
 
-GOBAG_VERSION="v0.2.0"
+GOBAG_VERSION="v0.2.1"
 
 # sha256 of each release asset. "PLACEHOLDER" means this version has not been
 # released yet; the script refuses to install rather than skip verification.
-SHA256_darwin_arm64="9a3c15f0f38be7865ce384202b6e990eb8eecf3e6e670e30000587de2697506b"
-SHA256_darwin_amd64="a95f912193ea7ba131e2f0f6193fb4cad495c2b16b322bd967f76a80e525ee7d"
-SHA256_linux_arm64="897320ddc19c7b0aabfb364a70941b85c3991f4e46872b343fedfb0aa17e2423"
-SHA256_linux_amd64="5a78f73e1a88580cef4609a928eff502fc974891794221cc410d8c46fcde2fe6"
+SHA256_darwin_arm64="92faa507e8422de15e375914a3e1d35ae6bd84c4066d6d75c090ebaa0dfc30a8"
+SHA256_darwin_amd64="3ae61cbfd3dee2dfddffdd258acf65cafe16817833896897afdaeec361128e70"
+SHA256_linux_arm64="4f12a7b3c9d24fe5a2b9f047df1d5051d082be4c6ea660866d94888fb63379b2"
+SHA256_linux_amd64="d15a33119e08ac519ab1cb5719ece3bbb493c46e643d3cc3a4a5a8f4bbf564ab"
 
 INSTALL_DIR="${GOBAG_INSTALL_DIR:-$HOME/.local/bin}"
 REPO="satmihir/gobag"
